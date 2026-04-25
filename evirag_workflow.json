@@ -1,0 +1,238 @@
+{
+  "name": "EVIRAG Orchestration Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/api/process_query",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "={\n  \"query\": \"{{ $json.query }}\",\n  \"config\": {\n    \"mode\": \"evirag\",\n    \"enabled_agents\": [\"precision\", \"recall\", \"skeptic\", \"counterfactual\"],\n    \"use_visual_grounding\": true,\n    \"depth_vs_speed\": \"balanced\"\n  }\n}"
+      },
+      "name": "EVIRAG API Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [920, 300],
+      "id": "evirag_api"
+    },
+    {
+      "parameters": {
+        "authentication": "none",
+        "method": "POST",
+        "path": "evirag-query",
+        "options": {}
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "webhookId": "evirag-webhook",
+      "id": "webhook_trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and process EVIRAG response\nconst result = $input.all()[0].json;\n\nreturn {\n  query: result.query,\n  mode: result.mode,\n  confidence: result.answer.overall_confidence,\n  confidence_score: result.answer.confidence_score,\n  dominant_view: result.answer.dominant_view.summary,\n  alternative_views_count: result.answer.alternative_views.length,\n  total_claims: result.statistics.total_claims,\n  disagreement_density: result.metrics.disagreement_density,\n  conflict_ratio: result.metrics.conflict_ratio,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "name": "Process Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300],
+      "id": "process_response"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.confidence }}",
+              "rightValue": "low",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Check Confidence",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1760, 300],
+      "id": "check_confidence"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "alert_type",
+              "name": "alert_type",
+              "value": "low_confidence",
+              "type": "string"
+            },
+            {
+              "id": "message",
+              "name": "message",
+              "value": "=Query: {{ $json.query }}\nConfidence: {{ $json.confidence }} ({{ $json.confidence_score }})\n\nThis query returned low confidence results. Manual review recommended.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Low Confidence Alert",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [2180, 180],
+      "id": "low_confidence_alert"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO evirag_results (\n  query,\n  mode,\n  confidence,\n  confidence_score,\n  dominant_view,\n  total_claims,\n  disagreement_density,\n  conflict_ratio,\n  timestamp\n) VALUES (\n  '{{ $json.query }}',\n  '{{ $json.mode }}',\n  '{{ $json.confidence }}',\n  {{ $json.confidence_score }},\n  '{{ $json.dominant_view }}',\n  {{ $json.total_claims }},\n  {{ $json.disagreement_density }},\n  {{ $json.conflict_ratio }},\n  '{{ $json.timestamp }}'\n);"
+      },
+      "name": "Log to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [2180, 420],
+      "id": "log_database",
+      "credentials": {
+        "postgres": {
+          "id": "postgres_creds",
+          "name": "EVIRAG PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "name": "Return Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2600, 300],
+      "id": "return_response"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "validation",
+              "name": "is_valid",
+              "value": "={{ $json.query && $json.query.length > 10 }}",
+              "type": "boolean"
+            }
+          ]
+        }
+      },
+      "name": "Validate Query",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [710, 300],
+      "id": "validate_query"
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Query": {
+      "main": [
+        [
+          {
+            "node": "EVIRAG API Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EVIRAG API Call": {
+      "main": [
+        [
+          {
+            "node": "Process Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Response": {
+      "main": [
+        [
+          {
+            "node": "Check Confidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Confidence": {
+      "main": [
+        [
+          {
+            "node": "Low Confidence Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Low Confidence Alert": {
+      "main": [
+        [
+          {
+            "node": "Return Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Database": {
+      "main": [
+        [
+          {
+            "node": "Return Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-02-11T00:00:00.000Z",
+  "versionId": "1"
+}

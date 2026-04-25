@@ -1,0 +1,33 @@
+☁️  CLOUD BACKEND TEST (Groq)
+================================================================================
+
+📝 Query: Does retrieval augmentation improve or hurt model performance?
+
+🎯 Testing with cloud backend to validate proper contradiction detection
+
+💡 Cloud models should detect 10-15% contradictions (vs. 0-1% local)
+
+📊 Config: 500 pairs (cloud), 0.35 min confidence
+
+Initializing EVIRAG System (backend: cloud - Groq)...
+
+Initializing EVIRAG System (backend: cloud)...
+EVIRAG System initialized
+Processing corpus...
+Loaded index: 214 chunks
+Using existing index. Set rebuild=True to reprocess.
+Processing visual evidence...
+Loaded 60 visual evidence entries from cache
+Using cached visual embeddings
+Corpus ready
+
+============================================================
+EVIRAG MODE (Full Pipeline)
+Query: Does retrieval augmentation improve or hurt model performance?
+============================================================
+
+Step 1: Epistemic intent analysis...
+Rate limited. Retrying in 2.0s...
+Rate limited. Retrying in 4.0s...
+Rate limited. Retrying in 8.0s...
+Rate limited. Retrying in 16.0s...

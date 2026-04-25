@@ -1,0 +1,26 @@
+🎯 HOMEWORK CONTRADICTION TEST
+================================================================================
+
+📚 Corpus: 4 homework research papers
+   HW1 Folder: 2 papers supporting homework effectiveness
+   HW2 Folder: 2 papers critical of homework
+
+📝 Query: Does assigning homework to students improve their academic performance and learning outcomes, 
+or is homework ineffective or even harmful to student achievement and wellbeing?
+
+✅ Configuration:
+   - Backend: Local (Llama3)
+   - Agents: ALL 4 (Precision + Recall + Skeptic + Counterfactual)
+   - Confidence: 0.45
+   - Pairs: 300
+
+💡 Expected: CONTRADICTIONS between PRO and ANTI homework claims!
+================================================================================
+
+Initializing EVIRAG System with homework papers...
+
+Initializing EVIRAG System (backend: local)...
+EVIRAG System initialized
+Processing corpus...
+Processing 4 PDFs...
+Processing PDFs:   0%|          | 0/4 [00:00<?, ?it/s]Processing PDFs:  25%|██▌       | 1/4 [00:00<00:00,  9.93it/s]

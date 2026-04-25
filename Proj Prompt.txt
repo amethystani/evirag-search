@@ -1,0 +1,562 @@
+i'm building this big comprehensive project.
+
+EVIRAG
+Evidence-Centric, Disagreement-Aware Retrieval-Augmented Generation for Scientific Literature
+
+1. Problem Statement
+
+Retrieval-Augmented Generation (RAG) systems are typically optimized to produce a single confident answer by aggregating retrieved documents. While effective for factual lookup, this paradigm is fundamentally misaligned with scientific knowledge, which is:
+
+inherently disputed
+
+context-dependent
+
+evolving over time
+
+supported by heterogeneous and sometimes contradictory evidence
+
+When applied to scientific literature, standard RAG systems often:
+
+collapse disagreement into a false consensus
+
+hallucinate confidence where evidence is mixed
+
+suppress minority or contradictory findings
+
+fail to explain why sources disagree
+
+Existing RAG frameworks lack explicit mechanisms to model evidence conflict, reason over disagreement, ground claims in visual experimental evidence, or calibrate confidence based on evidence structure rather than fluency.
+
+
+2. Project Objective
+
+The objective of EVIRAG is to design and implement a local-first, evidence-centric retrieval system that:
+
+Treats evidence and disagreement as first-class signals
+
+Surfaces competing scientific viewpoints rather than hiding them
+
+Verifies explanations against retrieved evidence before synthesis
+
+Uses role-specialized, constrained agents to stress-test claims
+
+Integrates textual and visual scientific evidence
+
+Produces calibrated confidence grounded in evidence agreement and conflict
+
+Operates entirely using local, open-weight models without external APIs
+
+
+3. Core Design Philosophy
+
+EVIRAG is guided by the following principles:
+
+Evidence over fluency
+
+Disagreement over consensus
+
+Verification before synthesis
+
+Constrained deliberative agents over autonomous agents
+
+Hybrid SLM–LLM–VLM architecture for efficiency and rigor
+
+Reproducible, local deployment over opaque cloud services
+
+
+4. Data Layer
+4.1 Corpus
+
+Domain: Scientific literature
+
+Machine Learning
+
+Artificial Intelligence
+
+Systems
+
+Theory
+
+(Optional extension: medicine, natural sciences)
+
+Size: ~1–2 GB
+
+Formats:
+
+PDF (primary)
+
+Optional DOCX, TXT
+
+Sources:
+
+arXiv
+
+Google Scholar downloads
+
+Open-access journals and proceedings
+
+
+
+4.2 Corpus Handling
+
+PDF parsing using PyPDF or equivalent tools
+
+Section-aware chunking (abstract, methods, results, discussion)
+
+Metadata extraction:
+
+Title
+
+Authors
+
+Year
+
+Venue (if available)
+
+Chunk storage with full document lineage preserved
+
+
+
+4.3 Embedding and Indexing (SLM-based)
+
+Embedding model: Sentence-Transformers (MiniLM-class)
+
+Vector store: FAISS or Chroma
+
+Chunk size optimized for claim density, not token length
+
+Index stores:
+
+text chunks
+
+metadata
+
+document references
+
+
+
+5. Visual Evidence Processing (VLM Extension)
+5.1 Figure Extraction
+
+From scientific PDFs:
+
+Extract figures, plots, diagrams
+
+Extract corresponding captions
+
+Link figures to:
+
+document
+
+section
+
+referenced textual claims
+
+
+5.2 Visual Embedding (CLIP ViT-B/16)
+
+VLM used: CLIP ViT-B/16 (local)
+
+Generate:
+
+image embeddings for figures
+
+text embeddings for captions and figure-referencing claims
+
+Embeddings cached offline for efficiency
+
+
+
+5.3 Visual–Text Alignment
+
+CLIP is used to:
+
+Measure alignment between claims and cited figures
+
+Compare figures across papers supporting opposing claims
+
+Detect:
+
+weak visual support
+
+overstated textual conclusions
+
+visually similar evidence leading to contradictory interpretations
+
+CLIP never generates language and never reasons independently.
+It only informs disagreement analysis and confidence calibration.
+
+
+6. User Interaction Layer (Streamlit)
+6.1 Query Type
+
+EVIRAG does not support keyword search.
+
+Users submit epistemic scientific questions, such as:
+
+disputed claims
+
+comparative hypotheses
+
+causal questions
+
+Example:
+
+“Is overparameterization necessary for generalization in deep neural networks?”
+
+
+
+6.2 UI Philosophy
+
+The Streamlit interface functions as an epistemic inspection instrument, not a chatbot.
+
+Key properties:
+
+exposes intermediate reasoning artifacts
+
+visualizes disagreement
+
+enables system ablations
+
+supports controlled exploration of uncertainty
+
+7. Epistemic Intent Analyzer (SLM)
+
+Model: phi-3:mini (SLM)
+
+Classifies the query along dimensions:
+
+factual vs disputed
+
+empirical vs theoretical
+
+expected disagreement level
+
+This classification controls:
+
+retrieval breadth
+
+agent activation
+
+escalation to heavier reasoning
+
+confidence calibration thresholds
+
+
+8. Explanation-First Verification (X-IR)
+8.1 Hypothesis Generation
+
+Instead of answering directly, EVIRAG first generates a structured explanation hypothesis.
+
+Output schema:
+
+{
+  "central_hypothesis": "...",
+  "supporting_claims": [...],
+  "assumptions": [...],
+  "expected_counterclaims": [...]
+}
+
+
+Purpose:
+
+make reasoning explicit
+
+convert explanations into verifiable units
+
+prevent hallucinated conclusions
+
+Models:
+
+Primary: phi-3:mini
+
+Escalation: llama3:latest (if low confidence)
+
+9. Multi-Agent Deliberative Retrieval (MAD-RAG)
+9.1 Agent Design
+
+Agents are role-specialized epistemic agents with constrained autonomy.
+
+Agent	Objective	Model
+Precision Agent	High-confidence support	llama3
+Recall Agent	Broad coverage	qwen3:4b
+Skeptic Agent	Actively find contradictions	llama3
+Counterfactual Agent	Attempt disproof	deepseek-r1:7b
+
+Each agent:
+
+receives the hypothesis
+
+observes system state
+
+executes a distinct retrieval and reasoning policy
+
+9.2 Agent Outputs
+
+Each agent returns:
+
+retrieved chunks
+
+extracted claims
+
+stance (support / oppose)
+
+internal confidence signals
+
+10. Claim Extraction Layer
+10.1 Claim Filtering (SLM)
+
+Model: phi-3:mini
+
+Filters candidate sentences likely to contain factual claims
+
+Removes background and non-assertive text
+
+10.2 Atomic Claim Extraction (LLM)
+
+Model: llama3:latest
+
+Converts filtered sentences into atomic, normalized claims
+
+Preserves source attribution
+
+Claims become the fundamental reasoning unit, not documents.
+
+11. Claim Relationship Analysis
+11.1 Pre-filtering (SLM)
+
+phi-3:mini identifies likely:
+
+support pairs
+
+contradiction pairs
+
+neutral pairs
+
+11.2 Verification (LLM)
+
+llama3 performs NLI-style reasoning:
+
+entailment
+
+contradiction
+
+neutral
+
+Only ambiguous or high-impact pairs are escalated.
+
+12. Disagreement Graph Construction
+
+A graph is constructed where:
+
+nodes: claims (textual + visual)
+
+edges: support or contradiction
+
+weights: confidence and evidence strength
+
+Tooling:
+
+NetworkX
+
+Optional PyVis for UI visualization
+
+13. Disagreement Metrics
+
+Computed metrics include:
+
+Disagreement density
+
+Conflict ratio
+
+Claim entropy
+
+Conflict centrality
+
+Visual–text mismatch scores (from CLIP)
+
+These metrics directly influence synthesis and confidence.
+
+14. Deliberative Multi-View Synthesis
+
+Instead of a single answer, EVIRAG produces:
+
+Dominant view
+
+Alternative views
+
+Minority or outlier views
+
+Each view includes:
+
+supporting claims
+
+source count
+
+visual evidence strength
+
+known weaknesses
+
+Model:
+
+phi-3:mini (primary)
+
+llama3 escalation if disagreement is high
+
+15. Confidence Calibration
+
+Confidence is derived, not predicted.
+
+Factors:
+
+claim agreement ratios
+
+source diversity
+
+contradiction severity
+
+unverified assumptions
+
+visual evidence alignment
+
+Example output:
+
+Confidence: Medium
+Reason:
+- 10 sources support
+- 6 contradict
+- Visual evidence partially ambiguous
+- Disagreement concentrated on theoretical interpretation
+
+16. Output Presentation (Streamlit)
+Tabs
+
+Multi-View Answer
+
+Disagreement Graph
+
+Claims & Evidence Table
+
+Visual Evidence
+
+Confidence & Metrics
+
+Sidebar Controls
+
+enable/disable agents
+
+switch modes:
+
+Vanilla RAG
+
+VERIRAG
+
+EVIRAG
+
+depth vs speed controls
+
+17. Execution Modes
+Mode A: Direct Local Execution (Default)
+Streamlit → Python Epistemic Engine → Local Models
+
+
+Used for:
+
+development
+
+demos
+
+evaluation
+
+viva
+
+Mode B: Orchestrated Execution (Optional)
+Streamlit → FastAPI → n8n → Python Agent Services
+
+
+Used for:
+
+ablation studies
+
+reproducible workflows
+
+batch evaluation
+
+FastAPI acts as a thin execution boundary.
+All epistemic logic remains in Python.
+
+
+
+18. Evaluation Framework
+Baselines
+
+Vanilla RAG
+
+Single-agent RAG
+
+Other Related Systems from literature etc.
+
+Metrics
+
+hallucination rate
+
+contradiction detection accuracy
+
+viewpoint coverage
+
+confidence calibration error
+
+visual grounding impact
+
+Qualitative Evaluation
+
+human trust judgment
+
+transparency perception
+
+overconfidence reduction
+
+
+19. Deployment Constraints
+
+fully local
+
+open-weight models only
+
+no external APIs
+
+designed for Mac M1-class hardware (16 GB RAM)
+
+
+20. Contributions Summary
+
+Evidence-centric reframing of RAG
+
+Explanation-first verification paradigm
+
+Disagreement-aware claim graph reasoning
+
+Multi-agent deliberative retrieval
+
+Hybrid SLM–LLM–VLM architecture
+
+Visual grounding of scientific claims
+
+Calibrated confidence from evidence structure
+
+Fully reproducible local deployment
+
+21. One-Line Project Description (Use Everywhere)
+
+EVIRAG is a local-first, evidence-centric, disagreement-aware retrieval-augmented generation system that surfaces competing scientific explanations, verifies claims through multi-agent deliberation, integrates textual and visual evidence, and produces calibrated confidence grounded in evidence conflict rather than consensus.
+
+
+
+
+This would be a fully-local system based on the described ollama + VLM models. 
+We have the hybrid rag architecture + streamlit interface to access all + optional n8n layer for orchestration (we'd have a json for the orchestration n8n workflow) + all etc. as described above.
+This will be a complete comprehensive data-agnostic system, made of python .py files (minimum no. of total python code files preferred).
+i'll set up the data files, thats research papers in pdf form from various ai/ml/data science related domains. that'd be our main testing point. i'll download them all and set them up in a folder called 'corpus', on which we'd test our comprehensive system.
+
+
+Let's build this!

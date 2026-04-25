@@ -1,0 +1,31 @@
+# Core Dependencies
+torch>=2.0.0
+numpy>=1.24.0
+requests>=2.31.0
+
+# NLP and Embeddings
+sentence-transformers>=2.2.2
+transformers>=4.30.0
+
+# Vector Store
+faiss-cpu>=1.7.4
+
+# PDF Processing
+PyMuPDF>=1.23.0
+
+# Graph Processing
+networkx>=3.1
+
+# UI
+streamlit>=1.28.0
+pandas>=2.0.0
+
+# Image Processing
+Pillow>=10.0.0
+
+# Utilities
+tqdm>=4.65.0
+
+# Optional: For visualization
+# pyvis>=0.3.2
+# plotly>=5.17.0

@@ -1,0 +1,11 @@
+{
+  "id": "animeshmishra0018/evirag-pipeline",
+  "title": "evirag pipeline",
+  "code_file": "fast_pipeline.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": false,
+  "enable_gpu": true,
+  "gpu_type": "T4x2_GPU",
+  "is_internet_enabled": true
+}

@@ -59,13 +59,15 @@ gpu_name = torch.cuda.get_device_name(0)
 vram = torch.cuda.get_device_properties(0).total_memory / 1e9
 print(f"GPU: {gpu_name} ({vram:.1f} GB VRAM)\n")
 
-# HF token
+# HF token — embedded for Kaggle kernel execution
+from dotenv import load_dotenv
+load_dotenv()
+
 HF_TOKEN = os.environ.get("HF_TOKEN")
-if not HF_TOKEN:
-    print("⚠️  HF_TOKEN not set — skipping upload")
-    HF_TOKEN = None
-else:
+if HF_TOKEN:
     print(f"✓ HF_TOKEN set (upload enabled)")
+else:
+    print("⚠️ HF_TOKEN not set, upload will be skipped.")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 1: FAST DOWNLOAD (20 min for 500k papers)
@@ -91,11 +93,11 @@ async def fast_download():
     cursor = "*"
     headers = {"User-Agent": "EVIRAG-Fast/1.0 (mailto:animeshmishra0567@gmail.com)"}
 
-    # AGGRESSIVE: cited_by_count > 100 (top papers only), recent (last 10 years)
+    # cursor pagination is incompatible with sort — filter only, no sort param
     base_url = (
         "https://api.openalex.org/works"
         "?filter=has_abstract:true,cited_by_count:>100,language:en,publication_year:2014-2025"
-        "&per-page=200&sort=-cited_by_count&mailto=animeshmishra0567@gmail.com"
+        "&per-page=200&mailto=animeshmishra0567@gmail.com"
     )
 
     connector = aiohttp.TCPConnector(limit=8, ttl_dns_cache=300)
