@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-EVIRAG Pipeline for Kaggle — Complete end-to-end execution.
+EVIRAG ULTRA-FAST Pipeline for Kaggle (4 hours, 500k papers, T4x2)
 Push and run via:
-  kaggle kernels push -p evirag-search/
+  kaggle kernels push -p evirag-search/ -u
 """
 
 import subprocess
 import sys
 import os
 
-# Run the full pipeline
-result = subprocess.run([sys.executable, "kaggle_runner.py"], cwd="/kaggle/input/evirag-search")
+# Run the FAST pipeline (optimized for 4-hour limit)
+result = subprocess.run([sys.executable, "fast_pipeline.py"], cwd="/kaggle/input/evirag-search")
 sys.exit(result.returncode)
