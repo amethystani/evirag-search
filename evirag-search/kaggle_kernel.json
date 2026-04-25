@@ -1,0 +1,17 @@
+{
+  "id": "amethystani/evirag-search-pipeline",
+  "title": "EVIRAG Binary-Quantized Search Pipeline",
+  "code_file": "notebook.py",
+  "language": "python",
+  "kernelType": "script",
+  "isPrivate": false,
+  "enableGpu": true,
+  "gpuType": "t4",
+  "isInternetEnabled": true,
+  "dogfoodingData": null,
+  "keywords": ["search", "faiss", "specter", "openalex", "binary-quantization"],
+  "datasetDataSources": [],
+  "competitionDataSources": [],
+  "modelInstanceDataSources": [],
+  "categoryIds": ["nlp", "feature-engineering"]
+}
