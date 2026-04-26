@@ -121,13 +121,16 @@ const Login = ({ onBack }) => {
   const handleGoogle = async () => {
     if (!clerkAvailable) { demoLogin(); return; }
     const appHome = window.location.origin + "/";
+    const callbackUrl = window.location.origin + "/sso-callback";
+    window.sessionStorage?.setItem("evirag_oauth_pending", "1");
     try {
       await window._clerk.client.signIn.authenticateWithRedirect({
         strategy: "oauth_google",
-        redirectUrl:         appHome,
+        redirectUrl:         callbackUrl,
         redirectUrlComplete: appHome,
       });
     } catch (err) {
+      window.sessionStorage?.removeItem("evirag_oauth_pending");
       // Fallback: open Clerk's hosted modal
       window._clerk.openSignIn({
         fallbackRedirectUrl: appHome,

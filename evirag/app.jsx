@@ -8,6 +8,61 @@ const hasClerkRedirectParams = () => {
   return marker.includes("__clerk_status") || marker.includes("__clerk_created_session");
 };
 
+const isClerkCallbackRoute = () => window.location.pathname.replace(/\/+$/, "") === "/sso-callback";
+
+const getClerkRedirectParam = (name) => {
+  const parts = [
+    window.location.search.replace(/^\?/, ""),
+    window.location.hash.replace(/^#\/?/, "").replace(/^\?/, ""),
+  ];
+  for (const part of parts) {
+    const value = new URLSearchParams(part).get(name);
+    if (value) return value;
+  }
+  return "";
+};
+
+const wasOAuthPending = () => window.sessionStorage?.getItem("evirag_oauth_pending") === "1";
+const clearOAuthPending = () => window.sessionStorage?.removeItem("evirag_oauth_pending");
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const readClerkUser = (clerk) => (
+  clerk.user ||
+  clerk.session?.user ||
+  clerk.client?.sessions?.find(s => s.status === "active")?.user ||
+  clerk.client?.sessions?.[0]?.user ||
+  null
+);
+
+const readClerkSessionId = (clerk) => (
+  clerk.session?.id ||
+  clerk.client?.lastActiveSessionId ||
+  clerk.client?.sessions?.find(s => s.status === "active")?.id ||
+  clerk.client?.sessions?.[0]?.id ||
+  ""
+);
+
+const activateReturnedSession = async (clerk, sessionId) => {
+  if (!sessionId || !clerk.setActive) return null;
+  await clerk.setActive({ session: sessionId });
+  return readClerkUser(clerk);
+};
+
+const waitForClerkUser = async (clerk, attempts = 20) => {
+  for (let i = 0; i < attempts; i += 1) {
+    const user = readClerkUser(clerk);
+    if (user) return user;
+    const sessionId = readClerkSessionId(clerk);
+    if (sessionId) {
+      const activeUser = await activateReturnedSession(clerk, sessionId).catch(() => null);
+      if (activeUser) return activeUser;
+    }
+    await delay(250);
+  }
+  return null;
+};
+
 const AppInner = ({ onLogout, user }) => {
   const [view, setView] = useState("home"); // home | results | corpus | graph | agents | calibration | history | discover | profile
   const [result, setResult] = useState(null);
@@ -463,8 +518,10 @@ const App = () => {
 
     clerk.load().then(async () => {
       const appHome = getAppHomeUrl();
+      const handlingOAuthReturn = hasClerkRedirectParams() || isClerkCallbackRoute();
+      const pendingOAuth = wasOAuthPending();
 
-      if (hasClerkRedirectParams()) {
+      if (handlingOAuthReturn) {
         try {
           await clerk.handleRedirectCallback({
             signInForceRedirectUrl: appHome,
@@ -472,19 +529,32 @@ const App = () => {
             signInFallbackRedirectUrl: appHome,
             signUpFallbackRedirectUrl: appHome,
           });
-          window.history.replaceState({}, document.title, appHome);
         } catch (err) {
           console.error("[evirag] Clerk redirect callback failed:", err);
         }
       }
 
-      const currentUser = clerk.user || clerk.session?.user || null;
+      let currentUser = readClerkUser(clerk);
+      if (!currentUser) {
+        const returnedSessionId = getClerkRedirectParam("__clerk_created_session") || readClerkSessionId(clerk);
+        currentUser = await activateReturnedSession(clerk, returnedSessionId).catch(() => null);
+      }
+      if (!currentUser && (handlingOAuthReturn || pendingOAuth)) {
+        currentUser = await waitForClerkUser(clerk);
+      }
+
+      if (currentUser) clearOAuthPending();
+      if (handlingOAuthReturn && window.location.href !== appHome) {
+        window.history.replaceState({}, document.title, appHome);
+      }
+
       setUser(currentUser || null);
-      setAuthStage(currentUser ? "app" : "splash");
+      setAuthStage(currentUser ? "app" : (pendingOAuth || handlingOAuthReturn ? "login" : "splash"));
 
       // React to auth changes (sign-in, sign-out, session expiry)
       clerk.addListener(({ user: u, session }) => {
-        const activeUser = u || session?.user || null;
+        const activeUser = u || session?.user || readClerkUser(clerk);
+        if (activeUser) clearOAuthPending();
         setUser(activeUser);
         setAuthStage(activeUser ? "app" : "splash");
       });
