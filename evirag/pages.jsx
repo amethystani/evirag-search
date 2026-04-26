@@ -33,7 +33,7 @@ const Pages = {
         <div className="lede">
           {Number(stats.total_documents || 0).toLocaleString()} papers indexed · {Number(stats.total_claims || 0).toLocaleString()} claims · {Number(stats.total_figures || 0).toLocaleString()} figures · FAISS index. Click any paper to inspect its claims, figures, and stance distribution.
         </div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+        <div className="chip-strip">
           {sections.map((name) => (
             <button
               key={name}
@@ -97,7 +97,7 @@ const Pages = {
         <div className="lede">Four deliberative agents run through the configured retrieval objectives and local model settings exposed by the backend.</div>
         <div className="grid-2">
           {agents.map((a) => (
-            <button key={a.key} className="tile" onClick={() => onOpen(a)} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+            <button key={a.key} className="tile agent-tile" onClick={() => onOpen(a)}>
               <div className="agent" style={{ padding: 0, border: 0 }}>
                 <div className="glyph" style={{ width: 40, height: 40, fontSize: 20 }}>{a.glyph}</div>
               </div>
@@ -247,7 +247,7 @@ const Pages = {
         </div>
 
         {/* Tab strip */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 18 }}>
+        <div className="chip-strip">
           {["trending", "recent", ...categories].map(tab => (
             <button
               key={tab}
@@ -312,7 +312,7 @@ const Pages = {
         <h1>Profile</h1>
 
         {/* Identity card */}
-        <div className="card" style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 24, padding: 20 }}>
+        <div className="card profile-card">
           {window.Avatar && <window.Avatar user={user} size={56}/>}
           <div>
             <div style={{ fontSize: 20, fontFamily: "Newsreader, serif", fontWeight: 600 }}>{displayName}</div>
@@ -323,7 +323,7 @@ const Pages = {
 
         {/* Stats row */}
         {stats && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
+          <div className="profile-stats">
             {[
               { label: "Sessions",         value: stats.sessions },
               { label: "Queries asked",    value: stats.turns    },

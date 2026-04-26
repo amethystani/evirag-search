@@ -598,8 +598,100 @@ async function fetchJson(path) {
   return r.json();
 }
 
+function fallbackUIBootstrap() {
+  const topicTabs = [
+    {
+      id: "disagreement",
+      label: "Disagreement",
+      items: [
+        { q: "Does amyloid beta cause Alzheimer's disease?", meta: "neuroscience · contested mechanism" },
+        { q: "Are saturated fats causally linked to cardiovascular mortality?", meta: "medicine · nutrition evidence" },
+        { q: "Do carbon offsets reduce net emissions at scale?", meta: "climate · policy evidence" },
+      ],
+    },
+    {
+      id: "claims",
+      label: "Claims",
+      items: [
+        { q: "Verify the claim that CRISPR off-target effects are clinically negligible", meta: "biology · safety claim" },
+        { q: "Check whether transformer scaling laws still hold beyond frontier model sizes", meta: "AI · empirical claim" },
+        { q: "Map evidence for microplastics affecting human endocrine function", meta: "medicine · exposure claim" },
+      ],
+    },
+    {
+      id: "documents",
+      label: "Corpus",
+      items: [
+        { q: "Find contradictory evidence in recent climate attribution papers", meta: "climate · corpus scan" },
+        { q: "Compare dominant and minority views on dark matter alternatives", meta: "physics · theory split" },
+        { q: "Summarize replicated versus disputed findings in microbiome depression studies", meta: "medicine · replication" },
+      ],
+    },
+  ];
+
+  return {
+    stats: {
+      total_documents: 0,
+      total_claims: 0,
+      total_figures: 0,
+      source: "frontend fallback",
+    },
+    models: {
+      retrieval: "EVIRAG",
+      verifier: "claim graph",
+    },
+    topics: { tabs: topicTabs },
+    documents: [
+      {
+        id: "fallback-corpus",
+        title: "Live corpus browser is unavailable in this deployment",
+        year: new Date().getFullYear(),
+        pages: 0,
+        claims: 0,
+        chunks: 0,
+        figures: 0,
+        sections: [{ name: "status", chunks: 0 }],
+        top_claims: [],
+      },
+    ],
+    graph: {
+      nodes: 0,
+      edges: 0,
+      clusters: [
+        { doc_id: "alzheimers", title: "Alzheimer's amyloid debate", claims: 0, edges: 0, density: 0, class: "query-ready", query: "Does amyloid beta cause Alzheimer's disease?" },
+        { doc_id: "offsets", title: "Carbon offset effectiveness", claims: 0, edges: 0, density: 0, class: "query-ready", query: "Do carbon offsets reduce net emissions at scale?" },
+        { doc_id: "dark-matter", title: "Dark matter alternatives", claims: 0, edges: 0, density: 0, class: "query-ready", query: "Compare evidence for dark matter versus modified gravity" },
+      ],
+    },
+    agents: [
+      { key: "skeptic", name: "Skeptic", glyph: "S", role: "Searches for contradictory evidence", model: "configured backend", search_strategy: "counter-evidence", retrieval_k: 8 },
+      { key: "builder", name: "Builder", glyph: "B", role: "Builds the strongest supporting case", model: "configured backend", search_strategy: "support", retrieval_k: 8 },
+      { key: "archivist", name: "Archivist", glyph: "A", role: "Grounds claims in source metadata", model: "configured backend", search_strategy: "citation-first", retrieval_k: 8 },
+      { key: "judge", name: "Judge", glyph: "J", role: "Calibrates confidence and uncertainty", model: "configured backend", search_strategy: "verification", retrieval_k: 8 },
+    ],
+    calibration: [
+      { key: "claim_agreement", label: "Claim agreement", weight: 0.32 },
+      { key: "source_diversity", label: "Source diversity", weight: 0.22 },
+      { key: "contradiction_severity", label: "Contradiction severity", weight: 0.28 },
+      { key: "unverified_assumptions", label: "Unverified assumptions", weight: 0.10 },
+      { key: "visual_alignment", label: "Visual alignment", weight: 0.08 },
+    ],
+  };
+}
+
+function shouldFetchUIBootstrap() {
+  const host = window.location.hostname;
+  return host === "localhost" || host === "127.0.0.1" || window.EVIRAG_CONFIG?.enableBackendBootstrap === true;
+}
+
 async function fetchUIBootstrap() {
-  return fetchJson("/api/ui/bootstrap?backend=local");
+  if (!shouldFetchUIBootstrap()) return fallbackUIBootstrap();
+  try {
+    return await fetchJson("/api/ui/bootstrap?backend=local");
+  } catch (err) {
+    console.warn("[api] using fallback bootstrap:", err instanceof Error ? err.message : err);
+    return fallbackUIBootstrap();
+  }
 }
 
 async function fetchCorpusDocuments() {
@@ -686,4 +778,3 @@ window.searchPapers        = searchPapers;
 window.fetchSearchStatus   = fetchSearchStatus;
 window.chatWithEvirag      = chatWithEvirag;
 window.deleteChatSession   = deleteChatSession;
-

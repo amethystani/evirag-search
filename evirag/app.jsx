@@ -82,9 +82,16 @@ const AppInner = ({ onLogout, user }) => {
 
   // Load user sessions from Supabase
   const refreshSessions = useCallback(async () => {
-    if (user && window.EVIRAG_DB) {
+    if (!user || !window.EVIRAG_DB) {
+      setUserSessions([]);
+      return;
+    }
+    try {
       const sessions = await window.EVIRAG_DB.getUserSessions(user.id);
       setUserSessions(sessions);
+    } catch (err) {
+      console.warn("[db] refreshSessions:", err);
+      setUserSessions([]);
     }
   }, [user]);
 
@@ -177,22 +184,24 @@ const AppInner = ({ onLogout, user }) => {
         const sid = raw.chat.session_id;
         const sessionTitle = query.slice(0, 80);
         // Fire-and-forget — don't block UI
-        Promise.all([
-          db.saveSession(sid, user.id, sessionTitle),
-          db.saveTurn({
-            sessionId:   sid,
-            userId:      user.id,
-            turnNum:     raw.chat.turn,
-            userMessage: query,
-            answer:      raw.chat.answer,
-            claim:       raw.chat.claim,
-            sources:     raw.chat.sources || [],
-          }),
-          raw.chat.claim
-            ? db.saveUserClaim({ userId: user.id, sessionId: sid, claimText: raw.chat.claim, confidence: 0.8 })
-            : Promise.resolve(),
-          db.trackQuery(query),
-        ]).then(() => refreshSessions()).catch(console.warn);
+        db.saveSession(sid, user.id, sessionTitle)
+          .then(() => Promise.all([
+            db.saveTurn({
+              sessionId:   sid,
+              userId:      user.id,
+              turnNum:     raw.chat.turn,
+              userMessage: query,
+              answer:      raw.chat.answer,
+              claim:       raw.chat.claim,
+              sources:     raw.chat.sources || [],
+            }),
+            raw.chat.claim
+              ? db.saveUserClaim({ userId: user.id, sessionId: sid, claimText: raw.chat.claim, confidence: 0.8 })
+              : Promise.resolve(),
+            db.trackQuery(query),
+          ]))
+          .then(() => refreshSessions())
+          .catch(console.warn);
       }
     } catch (err) {
       if (requestSeq.current === requestId) {
@@ -205,8 +214,11 @@ const AppInner = ({ onLogout, user }) => {
 
   // ── Resume a saved session (load turns from Supabase) ──────────────────────
   const handleResumeSession = async (session) => {
-    if (!window.EVIRAG_DB) return;
-    const turns = await window.EVIRAG_DB.getSessionTurns(session.id);
+    if (!user || !window.EVIRAG_DB) return;
+    const turns = await window.EVIRAG_DB.getSessionTurns(session.id, user.id).catch((err) => {
+      console.warn("[db] resumeSession:", err);
+      return [];
+    });
     if (!turns.length) return;
     // Build synthetic result from last turn for display
     const last = turns[turns.length - 1];
@@ -262,8 +274,8 @@ const AppInner = ({ onLogout, user }) => {
   );
 
   const handleDeleteSession = async (sessionId) => {
-    if (!window.EVIRAG_DB) return;
-    await window.EVIRAG_DB.deleteSession(sessionId);
+    if (!user || !window.EVIRAG_DB) return;
+    await window.EVIRAG_DB.deleteSession(sessionId, user.id).catch((err) => console.warn("[db] deleteSession:", err));
     refreshSessions();
     // If currently viewing that session, go home
     if (result?.chat?.session_id === sessionId) { setResult(null); setView("home"); }
@@ -498,7 +510,9 @@ const App = () => {
   // ── Initialize Clerk on mount ─────────────────────────────────────────────
   useEffect(() => {
     const key = window.EVIRAG_CONFIG?.clerkKey;
-    const hasRealKey = key && !key.startsWith("YOUR_");
+    const forceLocalDemo = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+      && new URLSearchParams(window.location.search).get("demo") === "1";
+    const hasRealKey = key && !key.startsWith("YOUR_") && !forceLocalDemo;
 
     if (!hasRealKey || !window.Clerk) {
       // Demo mode — no Clerk key configured

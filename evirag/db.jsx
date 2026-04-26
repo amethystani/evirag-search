@@ -16,18 +16,65 @@
     return _sb;
   }
 
+  const isLocalHost = () => ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  const getClerkSession = () => (
+    window._clerk?.session ||
+    window._clerk?.client?.sessions?.find(s => s.status === "active") ||
+    window._clerk?.client?.sessions?.[0] ||
+    null
+  );
+  const usePrivateAPI = () => !isLocalHost() && !!getClerkSession()?.getToken;
+
+  async function privateRequest(action, data = {}) {
+    const token = await getClerkSession()?.getToken();
+    if (!token) throw new Error("Missing Clerk session token.");
+    const resp = await fetch("/api/db", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify({ action, data }),
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(body.error || `Private DB ${resp.status}`);
+    return body.data;
+  }
+
   // ── Sessions ─────────────────────────────────────────────────────────────────
   async function saveSession(sessionId, userId, title) {
+    if (usePrivateAPI()) {
+      await privateRequest("saveSession", { sessionId, title });
+      return;
+    }
     const sb = getSB(); if (!sb || !userId) return;
-    const { error } = await sb.from("chat_sessions").upsert({
+    const payload = {
       id: sessionId, user_id: userId,
       title: (title || "Untitled").slice(0, 120),
       updated_at: new Date().toISOString(),
-    }, { onConflict: "id" });
-    if (error) console.warn("[db] saveSession:", error.message);
+    };
+
+    const { error } = await sb.from("chat_sessions").insert(payload);
+    if (!error) return;
+
+    const duplicate = error.code === "23505" || /duplicate key/i.test(error.message || "");
+    if (duplicate) {
+      const { error: updateError } = await sb
+        .from("chat_sessions")
+        .update({ title: payload.title, updated_at: payload.updated_at })
+        .eq("id", sessionId)
+        .eq("user_id", userId);
+      if (updateError) console.warn("[db] saveSession:", updateError.message);
+      return;
+    }
+
+    console.warn("[db] saveSession:", error.message);
   }
 
   async function getUserSessions(userId) {
+    if (usePrivateAPI()) {
+      return await privateRequest("getUserSessions");
+    }
     const sb = getSB(); if (!sb || !userId) return [];
     const { data, error } = await sb
       .from("chat_sessions")
@@ -39,14 +86,26 @@
     return data || [];
   }
 
-  async function deleteSession(sessionId) {
-    const sb = getSB(); if (!sb) return;
-    const { error } = await sb.from("chat_sessions").delete().eq("id", sessionId);
+  async function deleteSession(sessionId, userId) {
+    if (usePrivateAPI()) {
+      await privateRequest("deleteSession", { sessionId });
+      return;
+    }
+    const sb = getSB(); if (!sb || !userId) return;
+    const { error } = await sb
+      .from("chat_sessions")
+      .delete()
+      .eq("id", sessionId)
+      .eq("user_id", userId);
     if (error) console.warn("[db] deleteSession:", error.message);
   }
 
   // ── Turns ─────────────────────────────────────────────────────────────────────
   async function saveTurn({ sessionId, userId, turnNum, userMessage, answer, claim, sources }) {
+    if (usePrivateAPI()) {
+      await privateRequest("saveTurn", { sessionId, turnNum, userMessage, answer, claim, sources });
+      return;
+    }
     const sb = getSB(); if (!sb || !userId) return;
     const { error } = await sb.from("session_turns").insert({
       session_id: sessionId, user_id: userId, turn_num: turnNum,
@@ -60,12 +119,16 @@
     if (error) console.warn("[db] saveTurn:", error.message);
   }
 
-  async function getSessionTurns(sessionId) {
-    const sb = getSB(); if (!sb) return [];
+  async function getSessionTurns(sessionId, userId) {
+    if (usePrivateAPI()) {
+      return await privateRequest("getSessionTurns", { sessionId });
+    }
+    const sb = getSB(); if (!sb || !userId) return [];
     const { data, error } = await sb
       .from("session_turns")
       .select("turn_num, user_message, answer, claim, sources, created_at")
       .eq("session_id", sessionId)
+      .eq("user_id", userId)
       .order("turn_num", { ascending: true });
     if (error) console.warn("[db] getSessionTurns:", error.message);
     return data || [];
@@ -121,6 +184,10 @@
 
   // ── User claims (cross-session graph) ────────────────────────────────────────
   async function saveUserClaim({ userId, sessionId, claimText, confidence }) {
+    if (usePrivateAPI()) {
+      await privateRequest("saveUserClaim", { sessionId, claimText, confidence });
+      return;
+    }
     const sb = getSB(); if (!sb || !userId || !claimText) return;
     const { error } = await sb.from("user_claims").insert({
       user_id: userId, session_id: sessionId,
@@ -131,6 +198,9 @@
   }
 
   async function getUserClaims(userId, limit = 50) {
+    if (usePrivateAPI()) {
+      return await privateRequest("getUserClaims", { limit });
+    }
     const sb = getSB(); if (!sb || !userId) return [];
     const { data, error } = await sb
       .from("user_claims")
@@ -144,6 +214,9 @@
 
   // ── User stats (for profile page) ─────────────────────────────────────────────
   async function getUserStats(userId) {
+    if (usePrivateAPI()) {
+      return await privateRequest("getUserStats");
+    }
     const sb = getSB(); if (!sb || !userId) return { sessions: 0, turns: 0, claims: 0 };
     const [sessRes, turnsRes, claimsRes] = await Promise.all([
       sb.from("chat_sessions").select("id", { count: "exact", head: true }).eq("user_id", userId),

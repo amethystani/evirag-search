@@ -1561,6 +1561,344 @@ input, textarea { font-family: inherit; color: inherit; }
   font-family: "JetBrains Mono", monospace; margin-top: 4px;
 }
 
+/* ── Shared page utilities ───────────────────────────────────────────────── */
+.chip-strip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.agent-tile {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.profile-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 24px;
+  padding: 20px;
+}
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.tile,
+.card,
+.chat-user-bubble,
+.chat-bot-bubble,
+.modal,
+.drawer {
+  overflow-wrap: anywhere;
+}
+
+/* ── Mobile polish pass ─────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  html, body, .app, .main, .sidebar {
+    height: 100dvh;
+  }
+  .main {
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sb-reopen {
+    top: max(12px, env(safe-area-inset-top));
+    left: max(12px, env(safe-area-inset-left));
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    box-shadow: 0 14px 34px -24px rgba(0,0,0,0.45);
+  }
+  .sidebar {
+    width: min(82vw, 304px);
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+  .home {
+    min-height: 100dvh;
+    padding: 72px 14px 56px;
+  }
+  .wordmark {
+    font-size: clamp(54px, 18vw, 70px);
+    margin: 0 0 4px;
+  }
+  .tagline {
+    width: min(100%, 340px);
+    margin-bottom: 24px;
+    font-size: 14px;
+    line-height: 1.35;
+  }
+  .composer,
+  .suggest {
+    max-width: none;
+  }
+  .composer {
+    padding: 12px;
+    border-radius: 14px;
+  }
+  .composer-input {
+    min-height: 34px;
+    font-size: 16px;
+  }
+  .composer-row {
+    align-items: stretch;
+  }
+  .composer-left,
+  .composer-right {
+    width: 100%;
+  }
+  .composer-left .chip.is-static {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .composer-right .mode-wrap {
+    flex: 1 1 auto;
+  }
+  .model-pill {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .mode-menu {
+    max-width: calc(100vw - 36px);
+  }
+  .suggest {
+    margin-top: 14px;
+    padding: 12px;
+    border-radius: 12px;
+  }
+  .suggest-tabs,
+  .chip-strip,
+  .tabbar,
+  .drawer-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .suggest-tabs::-webkit-scrollbar,
+  .chip-strip::-webkit-scrollbar,
+  .tabbar::-webkit-scrollbar,
+  .drawer-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .suggest-tabs,
+  .chip-strip {
+    margin-left: -12px;
+    margin-right: -12px;
+    padding: 0 12px 2px;
+  }
+  .s-tab,
+  .chip,
+  .tabbar button,
+  .drawer-tab {
+    flex: 0 0 auto;
+  }
+  .s-item {
+    padding: 11px 2px;
+    font-size: 14px;
+  }
+  .page,
+  .results,
+  .results-chat-first {
+    padding: 72px 14px 72px !important;
+    max-width: none !important;
+  }
+  .page h1 {
+    font-size: 30px;
+    line-height: 1.05;
+    margin-top: 0;
+  }
+  .page .lede {
+    margin-bottom: 18px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .grid-2,
+  .grid-3,
+  .result-side,
+  .profile-stats {
+    grid-template-columns: 1fr !important;
+  }
+  .tile,
+  .card {
+    border-radius: 10px;
+  }
+  .tile {
+    padding: 13px 14px;
+  }
+  .agent-tile,
+  .profile-card {
+    align-items: flex-start;
+  }
+  .profile-card {
+    gap: 12px;
+    padding: 16px;
+  }
+  .q-line {
+    gap: 8px;
+  }
+  .q-line .back {
+    width: 30px;
+    height: 30px;
+    flex: 0 0 auto;
+  }
+  .q-text {
+    font-size: clamp(24px, 8vw, 31px);
+    line-height: 1.1;
+  }
+  .q-meta {
+    gap: 6px;
+    margin-bottom: 18px;
+  }
+  .q-meta .pill,
+  .insight-chip {
+    min-height: 28px;
+  }
+  .chat-history {
+    gap: 12px;
+  }
+  .chat-user-bubble {
+    max-width: 92%;
+    padding: 10px 13px;
+    font-size: 14px;
+  }
+  .chat-bot-bubble {
+    padding: 12px 13px;
+    font-size: 14px;
+    line-height: 1.58;
+  }
+  .direct-answer p,
+  .view-summary {
+    font-size: 18px;
+  }
+  .view-block {
+    padding: 16px 14px 16px 16px;
+    border-radius: 10px;
+  }
+  .view-head,
+  .graph-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .claim-row {
+    grid-template-columns: 28px minmax(0, 1fr) !important;
+    gap: 8px;
+  }
+  .claim-row .src {
+    grid-column: 1 / -1;
+    padding-left: 36px;
+    justify-content: flex-start !important;
+    text-align: left !important;
+    white-space: normal !important;
+  }
+  .graph-wrap {
+    padding: 12px;
+  }
+  .graph-svg {
+    height: 240px;
+  }
+  .bar-row {
+    grid-template-columns: minmax(96px, 32%) 1fr 36px !important;
+  }
+  .modal-backdrop {
+    padding: 12px;
+    align-items: end;
+    place-items: end center;
+  }
+  .modal {
+    width: 100%;
+    max-height: min(88dvh, 720px);
+    border-radius: 14px 14px 0 0;
+  }
+  .modal-head {
+    padding: 15px 16px 11px;
+  }
+  .modal-body {
+    padding: 15px 16px 20px;
+  }
+  .drawer-overlay {
+    justify-content: stretch;
+  }
+  .drawer {
+    width: 100vw;
+    max-width: none;
+  }
+  .drawer-body {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 560px) {
+  .home {
+    padding-inline: 12px;
+  }
+  .composer-left {
+    gap: 5px;
+  }
+  .chip {
+    height: auto;
+    min-height: 30px;
+    padding: 6px 10px;
+    line-height: 1.25;
+  }
+  .btn-plus,
+  .icon-btn,
+  .send-btn {
+    flex: 0 0 auto;
+  }
+  .composer-right {
+    justify-content: flex-start;
+  }
+  .q-line > .icon-btn {
+    display: none;
+  }
+  .results-chat-first .composer {
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .graph-head .legend {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .bar-row {
+    grid-template-columns: 1fr !important;
+    gap: 5px;
+  }
+  .bar-row .num {
+    text-align: left;
+  }
+  .kv {
+    grid-template-columns: 1fr !important;
+  }
+  .login {
+    display: block;
+    overflow-y: auto;
+    padding: 76px 12px 24px;
+  }
+  .login .login-top,
+  .splash-top,
+  .splash-foot {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .login-card {
+    width: 100%;
+    padding: 22px 18px 20px;
+    border-radius: 14px;
+  }
+  .login-card h1 {
+    font-size: 26px;
+  }
+  .splash-tag {
+    font-size: 21px;
+  }
+  .splash-center {
+    padding-inline: 18px;
+    padding-bottom: 12vh;
+  }
+}
+
 /* scrollbar */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--hair-2); border-radius: 6px; border: 2px solid var(--bg); }
