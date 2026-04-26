@@ -17,10 +17,7 @@
     ? { backendUrl: 'http://localhost:8000', searchUrl: 'http://localhost:7860' }
     : { backendUrl: 'https://amethystani-evirag-backend.hf.space', searchUrl: 'https://amethystani-evirag-search.hf.space' };
 
-  // ── Clerk auth key ──────────────────────────────────────────────────────────
-  // Create a free app at https://clerk.com → copy the Publishable Key (pk_test_...)
-  // and paste it below. Leave as-is for demo/offline mode.
-  window.EVIRAG_CONFIG.clerkKey = "YOUR_CLERK_PUBLISHABLE_KEY";
+  window.EVIRAG_CONFIG.clerkKey = "pk_test_c3VwZXJiLXdoaXBwZXQtMjQuY2xlcmsuYWNjb3VudHMuZGV2JA";
 
   // ── Supabase (pre-configured — do not change) ────────────────────────────
   window.EVIRAG_CONFIG.supabaseUrl  = "https://xlzwfkgurrrspcdyqele.supabase.co";
@@ -32,7 +29,12 @@
 <!-- Supabase JS client -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <!-- Clerk JS (vanilla — exposes window.Clerk) -->
-<script src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"></script>
+<script
+  crossorigin="anonymous"
+  data-clerk-publishable-key="pk_test_c3VwZXJiLXdoaXBwZXQtMjQuY2xlcmsuYWNjb3VudHMuZGV2JA"
+  src="https://superb-whippet-24.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
+  type="text/javascript"
+></script>
 
 <!-- React 18 + Babel standalone -->
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -42,15 +44,15 @@
 <body>
 <div id="root"></div>
 <!-- db.jsx must load before app.jsx (provides window.EVIRAG_DB) -->
-<script type="text/babel" src="db.jsx?v=10"></script>
-<script type="text/babel" src="icons.jsx?v=10"></script>
-<script type="text/babel" src="api.jsx?v=10"></script>
-<script type="text/babel" src="modal.jsx?v=10"></script>
-<script type="text/babel" src="pages.jsx?v=10"></script>
-<script type="text/babel" src="sidebar.jsx?v=10"></script>
-<script type="text/babel" src="home.jsx?v=10"></script>
-<script type="text/babel" src="results.jsx?v=10"></script>
-<script type="text/babel" src="auth.jsx?v=10"></script>
-<script type="text/babel" src="app.jsx?v=10"></script>
+<script type="text/babel" src="db.jsx?v=11"></script>
+<script type="text/babel" src="icons.jsx?v=11"></script>
+<script type="text/babel" src="api.jsx?v=11"></script>
+<script type="text/babel" src="modal.jsx?v=11"></script>
+<script type="text/babel" src="pages.jsx?v=11"></script>
+<script type="text/babel" src="sidebar.jsx?v=11"></script>
+<script type="text/babel" src="home.jsx?v=11"></script>
+<script type="text/babel" src="results.jsx?v=11"></script>
+<script type="text/babel" src="auth.jsx?v=11"></script>
+<script type="text/babel" src="app.jsx?v=11"></script>
 </body>
 </html>

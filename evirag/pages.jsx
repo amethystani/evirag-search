@@ -1,5 +1,5 @@
 /* global React, Icon */
-const { useState } = React;
+const { useState, useEffect } = React;
 
 const LoadingPage = ({ title }) => (
   <div className="page">

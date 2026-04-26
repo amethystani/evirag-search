@@ -450,8 +450,8 @@ const App = () => {
       return () => window.removeEventListener("evirag:auth", handler);
     }
 
-    // Real Clerk initialization
-    const clerk = new window.Clerk(key);
+    // Real Clerk initialization. The script-tag build exposes a singleton.
+    const clerk = window.Clerk;
     window._clerk = clerk;
 
     clerk.load().then(() => {
