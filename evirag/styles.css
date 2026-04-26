@@ -1407,6 +1407,12 @@ input, textarea { font-family: inherit; color: inherit; }
   line-height: 1.4;
   margin-bottom: 6px;
 }
+.clerk-captcha {
+  display: grid;
+  place-items: center;
+  min-height: 72px;
+  margin: 4px 0 12px;
+}
 .login-divider {
   display: flex; align-items: center; gap: 10px;
   font-family: "JetBrains Mono", monospace;

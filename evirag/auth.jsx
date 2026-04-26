@@ -205,17 +205,44 @@ const Login = ({ onBack }) => {
         {mode === "signup" && (
           <div className="login-field">
             <label>Full name</label>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="Ada Lovelace" autoFocus/>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Ada Lovelace"
+              autoComplete="name"
+              autoFocus
+            />
           </div>
         )}
         <div className="login-field">
           <label>Email</label>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@lab.edu"/>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="you@lab.edu"
+            autoComplete="email"
+          />
         </div>
         <div className="login-field">
           <label>Password</label>
-          <input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="••••••••"/>
+          <input
+            type="password"
+            value={pw}
+            onChange={e => setPw(e.target.value)}
+            placeholder="••••••••"
+            autoComplete={mode === "signin" ? "current-password" : "new-password"}
+          />
         </div>
+
+        {mode === "signup" && (
+          <div
+            id="clerk-captcha"
+            className="clerk-captcha"
+            data-cl-theme="light"
+            data-cl-size="flexible"
+          />
+        )}
 
         <button className="login-submit" type="submit" disabled={loading}>
           {loading ? "Please wait…" : mode === "signin" ? "Sign in →" : "Create account →"}
