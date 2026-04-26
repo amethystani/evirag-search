@@ -6,7 +6,8 @@
 // window.* globals set at the bottom of this file.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BACKEND_URL = "http://localhost:8000";
+const BACKEND_URL = (window.EVIRAG_CONFIG && window.EVIRAG_CONFIG.backendUrl) || "http://localhost:8000";
+const SEARCH_URL  = (window.EVIRAG_CONFIG && window.EVIRAG_CONFIG.searchUrl)  || "http://localhost:7860";
 
 function _parseYear(text) {
   const match = String(text || "").match(/\b(19|20)\d{2}\b/);
@@ -77,13 +78,20 @@ function controversyLevel(edScore) {
 }
 
 // ── Build calibration factors from available metrics ─────────────────────────
-function _buildCalibration(answer, metrics) {
-  const cr = metrics.conflict_ratio || 0;
-  const vr = metrics.visual_text_mismatch || 0;
+function _buildCalibration(answer, metrics, sourceCount = 0) {
+  const cr   = metrics.conflict_ratio || 0;
+  const vr   = metrics.visual_text_mismatch || 0;
   const conf = answer.confidence_score || 0.5;
+
+  // "No conflicts found" ≠ "high agreement" — may mean sparse/irrelevant corpus.
+  // Apply an evidence-sufficiency penalty when source count is low.
+  const evidencePenalty = sourceCount < 3 ? 0.35 : sourceCount < 6 ? 0.15 : 0;
+  const rawAgreement    = cr > 0 ? (1 - cr * 0.7) : 0.72;   // cap at 0.72 when no conflicts
+  const claimAgreement  = Math.max(0.05, Math.min(0.72, rawAgreement - evidencePenalty));
+
   return [
-    ["Claim agreement",       Math.max(0.05, Math.min(0.98, 1 - cr * 0.7)),     "",        "How aligned the kept claims are with each other."],
-    ["Source diversity",      Math.max(0.05, Math.min(0.98, conf * 0.95 + 0.1)),"accent",  "Spread of retrieved sources across venues and years."],
+    ["Claim agreement",       claimAgreement,                                    "",        "How aligned the kept claims are with each other."],
+    ["Source diversity",      Math.max(0.05, Math.min(0.95, conf * 0.95 + 0.1)),"accent",  "Spread of retrieved sources across venues and years."],
     ["Contradiction severity",Math.max(0.05, Math.min(0.98, cr)),                "contra",  "Severity of opposing claims (higher = more conflict)."],
     ["Unverified assump.",    Math.max(0.05, Math.min(0.98, 0.50 - cr * 0.3)),  "muted",   "Hypothesis assumptions not validated against evidence."],
     ["Visual alignment",      Math.max(0.05, Math.min(0.98, 1 - vr)),            "support", "CLIP-based agreement between figures and textual claims."]
@@ -419,7 +427,9 @@ function transformResult(data, query) {
     }));
 
   // ── Calibration sidebar factors ───────────────────────────────────────────────
-  const calibration = _buildCalibration(answer, metrics);
+  // Use chat sources if present (FAISS-retrieved), otherwise EVIRAG sources.
+  const calSourceCount = (data.chat?.sources || data.sources || []).length;
+  const calibration = _buildCalibration(answer, metrics, calSourceCount);
 
   // ── Hypothesis ────────────────────────────────────────────────────────────────
   const hyp = data.hypothesis || {};
@@ -485,6 +495,8 @@ function transformResult(data, query) {
     })),
   };
 
+  const chatData = data.chat || null;
+
   metricsObj.sources = sources.length;
   metricsObj.figuresAligned = visual.enabled ? visual.items.length : 0;
 
@@ -504,6 +516,8 @@ function transformResult(data, query) {
     temporal,
     confidenceReasoning,
     visual,
+    chat: chatData,
+    claims: data.claims || [],
     raw: data
   };
 }
@@ -600,8 +614,64 @@ async function fetchAgentsStatus() {
   return fetchJson("/api/agents/status?backend=local");
 }
 
+// ── Fast semantic paper search (FAISS + HF parquet index, sub-100ms) ─────────
+async function searchPapers(query, k = 20) {
+  const t0 = performance.now();
+  const resp = await fetch(`${SEARCH_URL}/search`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ query, k })
+  });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => "");
+    throw new Error(`Search backend ${resp.status}: ${txt.slice(0, 200)}`);
+  }
+  const data = await resp.json();
+  // Annotate with client-measured round-trip latency
+  data.client_latency_ms = Math.round(performance.now() - t0);
+  return data;
+}
+
+async function fetchSearchStatus() {
+  try {
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 3000);
+    const r = await fetch(`${SEARCH_URL}/status`, { signal: ctrl.signal });
+    if (!r.ok) return { status: "unreachable" };
+    return r.json();
+  } catch { return { status: "unreachable" }; }
+}
+
+// ── Perplexity-style chat (multi-turn, claim accumulation) ─────────────────
+async function chatWithEvirag(message, sessionId = null, options = {}) {
+  const resp = await fetch(`${BACKEND_URL}/api/chat`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({
+      message,
+      session_id: sessionId,
+      backend: options.backend || "local",
+      agents: !!options.agents,
+      vlm: !!options.vlm
+    }),
+  });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => "");
+    throw new Error(`Chat backend ${resp.status}: ${txt.slice(0, 200)}`);
+  }
+  return resp.json();
+  // returns: { session_id, answer (markdown), claim, sources, turn, latency_ms, history }
+}
+
+async function deleteChatSession(sessionId) {
+  try {
+    await fetch(`${BACKEND_URL}/api/chat/${sessionId}`, { method: "DELETE" });
+  } catch { /* ignore */ }
+}
+
 // ── Expose to window (consumed by all JSX files) ─────────────────────────────
 window.BACKEND_URL         = BACKEND_URL;
+window.SEARCH_URL          = SEARCH_URL;
 window.queryBackend        = queryBackend;
 window.fetchQueryTracePlan = fetchQueryTracePlan;
 window.transformResult     = transformResult;
@@ -612,3 +682,8 @@ window.fetchCorpusDocuments= fetchCorpusDocuments;
 window.fetchGraphOverview  = fetchGraphOverview;
 window.fetchAgentsStatus   = fetchAgentsStatus;
 window.controversyLevel    = controversyLevel;
+window.searchPapers        = searchPapers;
+window.fetchSearchStatus   = fetchSearchStatus;
+window.chatWithEvirag      = chatWithEvirag;
+window.deleteChatSession   = deleteChatSession;
+

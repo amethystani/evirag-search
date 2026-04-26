@@ -1,5 +1,22 @@
 /* global React, Icon */
-const { useState, useMemo, useEffect } = React;
+const { useState, useMemo, useEffect, useRef } = React;
+
+// Rotating thinking words shown during loading — Perplexity-style
+const THINKING_WORDS = [
+  "flabbergasting","epistemological","disambiguating","triangulating","corroborating",
+  "scrutinizing","adjudicating","deliberating","substantiating","interrogating",
+  "extrapolating","calibrating","synthesizing","verifying","deducing",
+  "cross-referencing","contextualizing","unpacking","reasoning","mapping",
+];
+function useRotatingWord(active, intervalMs = 900) {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (!active) { setIdx(0); return; }
+    const id = setInterval(() => setIdx(i => (i + 1) % THINKING_WORDS.length), intervalMs);
+    return () => clearInterval(id);
+  }, [active]);
+  return THINKING_WORDS[idx];
+}
 
 const requestLabels = (options = {}) => {
   const mode = String(options.mode || "EVIRAG");
@@ -103,8 +120,32 @@ const DisagreementGraph = ({ graph, onNode }) => {
   );
 };
 
-const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePlan, onRetry, onBack, onOpenSource, onOpenClaim, onOpenAgent, onOpenFigure, onOpenMetric, onOpenHypothesis }) => {
-  const [tab, setTab] = useState("answer");
+const TypingIndicator = ({ pendingQuery, thinkingWord }) => (
+  <>
+    {pendingQuery && (
+      <div className="chat-msg user fade-up" style={{ marginBottom: 12 }}>
+        <div className="chat-user-bubble">
+          <strong>Q:</strong> {pendingQuery}
+        </div>
+      </div>
+    )}
+    <div className="chat-msg assistant fade-up">
+      <div className="chat-bot-bubble card thinking-bubble" style={{ marginBottom: 0 }}>
+        <div className="thinking-header">
+          <span className="thinking-dot"/>
+          <span className="thinking-dot"/>
+          <span className="thinking-dot"/>
+          <span className="thinking-word">{thinkingWord}</span>
+        </div>
+      </div>
+    </div>
+  </>
+);
+
+const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePlan, onRetry, onBack, onSubmit, onOpenSource, onOpenClaim, onOpenAgent, onOpenFigure, onOpenMetric, onOpenHypothesis }) => {
+  const [drawer, setDrawer] = useState(null); // null | 'sources'|'claims'|'graph'|'views'|'analysis'
+  const [drawerTab, setDrawerTab] = useState('sources');
+  const [followUp, setFollowUp] = useState("");
   const [loadingStep, setLoadingStep] = useState(0);
   const pendingMode = pendingOptions && pendingOptions.mode;
   const pendingAgents = !!(pendingOptions && pendingOptions.agents);
@@ -142,52 +183,23 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
     return () => window.clearInterval(id);
   }, [loading, pendingQuery, pendingMode, pendingAgents, pendingVlm, tracePlanKey]);
 
+  const thinkingWord = useRotatingWord(loading);
   const r = result;
-  if (loading) {
+
+
+  // First query loading (no prior result) — minimal full-screen state
+  if (loading && !result) {
     return (
-      <div className="results">
-        <div className="result-main">
+      <div className="results results-chat-first">
+        <div className="chat-col">
           <div className="q-line fade-up">
             <button className="back" onClick={onBack} title="Back"><Icon name="arrow-left" size={16}/></button>
             <div style={{ flex: 1 }}>
               <div className="q-text serif">{pendingQuery || "EVIRAG inquiry"}</div>
-              <div className="q-meta">
-                <span className="pill"><span className="lbl">status</span> reasoning</span>
-                <span className="pill"><span className="lbl">mode</span> {labels.mode}</span>
-                <span className="pill"><span className="lbl">path</span> {labels.path}</span>
-                {pendingVlm && <span className="pill"><span className="lbl">visual</span> requested</span>}
-              </div>
             </div>
           </div>
-
-          <div className="card fade-up reasoning-card">
-            <div className="reason-title">
-              <h3>Reasoning through corpus evidence <span className="small">{activeLoadingStep + 1}/{loadingSteps.length}</span></h3>
-            </div>
-            <div className="reason-pulse"><span/></div>
-            <p className="reason-lede">{loadingSteps[activeLoadingStep][1]}</p>
-            <div className="reason-steps" aria-label="Backend pipeline trace">
-              {loadingSteps.map(([label, detail], i) => (
-                <div
-                  key={label}
-                  className={"reason-step " + (i < activeLoadingStep ? "is-done" : i === activeLoadingStep ? "is-active" : "is-pending")}
-                >
-                  <span className="reason-dot"/>
-                  <div>
-                    <div className="reason-label">{label}</div>
-                    <div className="reason-detail">{detail}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="reason-note">
-              <Icon name="library" size={14}/>
-              <span>
-                {tracePlan
-                  ? `Plan ready: ${tracePlan.corpus ? `${tracePlan.corpus.total_documents} documents, ${tracePlan.corpus.total_claims} claims, ${tracePlan.corpus.total_claim_edges} graph edges` : "corpus metadata attached"}.`
-                  : "Determining optimal retrieval path and index routing."}
-              </span>
-            </div>
+          <div className="chat-history">
+            <TypingIndicator pendingQuery={pendingQuery} thinkingWord={thinkingWord}/>
           </div>
         </div>
       </div>
@@ -221,284 +233,308 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
   }
 
   const supportEdges = r.graph.edges.filter(e => e.kind === "support").length;
-  const contraEdges = r.graph.edges.filter(e => e.kind === "contra").length;
+  const contraEdges  = r.graph.edges.filter(e => e.kind === "contra").length;
   const neutralEdges = r.graph.edges.filter(e => e.kind === "neutral").length;
-  const total = r.graph.edges.length;
-  const calibration = r.calibration || [];
-  const visibleClaims = r.views.flatMap(v => v.claims.map(c => ({ ...c, view: v.label, kind: v.kind })));
+  const total        = r.graph.edges.length;
+  const calibration  = r.calibration || [];
+  // Use accumulated backend claims (grow per turn) as primary; fall back to view claims
+  const accClaims = Array.isArray(r.claims) ? r.claims : [];
+  const viewClaims = r.views.flatMap(v => v.claims.map(c => ({ ...c, view: v.label, kind: v.kind })));
+  const visibleClaims = accClaims.length > 0
+    ? accClaims.map((c, i) => ({
+        n: `C-${String(i + 1).padStart(2, "0")}`,
+        text: c.text || c.claim || "(no text)",
+        src: c.source_doc_title || c.doc_title || "—",
+        cites: [],
+        view: c.stance || "claim",
+        kind: c.kind || "neutral",
+        context: c.context || "",
+        claimId: c.id || "",
+        docId: c.source_doc_id || "",
+      }))
+    : viewClaims;
+  const totalAccClaims = r.chat?.total_claims ?? visibleClaims.length;
+  const totalAccSources = r.chat?.total_sources ?? r.metrics.sources;
   const disputedLabel = String(r.intent.dispute || "contested").replace(/_/g, " ");
 
+  const openDrawer = (panel) => { setDrawerTab(panel); setDrawer(panel); };
+
+  // ── Drawer panel content ─────────────────────────────────────────────────────
+  const DrawerContent = () => {
+    const panels = [
+      { id: "sources", icon: "library", label: "Sources", count: totalAccSources },
+      { id: "claims",  icon: "doc",     label: "Claims",  count: totalAccClaims },
+      { id: "graph",   icon: "graph",   label: "Graph",   count: r.graph.nodes.length },
+      { id: "views",   icon: "sparkle", label: "Views",   count: r.views.length },
+      { id: "analysis",icon: "chart",   label: "Analysis",count: null },
+    ];
+    return (
+      <div className="drawer-overlay" onClick={() => setDrawer(null)}>
+        <div className="drawer" onClick={e => e.stopPropagation()}>
+          <div className="drawer-header">
+            <div className="drawer-tabs">
+              {panels.map(p => (
+                <button key={p.id}
+                  className={"drawer-tab" + (drawerTab === p.id ? " is-active" : "")}
+                  onClick={() => setDrawerTab(p.id)}>
+                  <Icon name={p.icon} size={12}/>
+                  {p.label}
+                  {p.count != null && <span className="count">{p.count}</span>}
+                </button>
+              ))}
+            </div>
+            <button className="drawer-close" onClick={() => setDrawer(null)}>
+              <Icon name="close" size={16}/>
+            </button>
+          </div>
+          <div className="drawer-body">
+            {drawerTab === "sources" && (
+              <div>
+                {/* Prefer FAISS chat sources (peS2o corpus); fall back to EVIRAG sources */}
+                {(r.chat?.sources?.length ? r.chat.sources : r.sources).map((s, idx) => (
+                  <button key={s.n ?? idx} className="src-card" onClick={() => { setDrawer(null); onOpenSource(s); }}>
+                    <div className="num">{s.n ?? idx + 1}</div>
+                    <div>
+                      <div className="src-title">{s.title}</div>
+                      <div className="src-meta">
+                        <span>{s.source || s.venue || s.doi || "peS2o corpus"}</span>
+                        {s.year ? <span>· {s.year}</span> : null}
+                      </div>
+                      {s.snippet && <div className="src-snippet">{s.snippet.slice(0, 200)}{s.snippet.length > 200 ? "…" : ""}</div>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {drawerTab === "claims" && (
+              <div>
+                {visibleClaims.map((c, i) => (
+                  <div key={i} className="claim-row" onClick={() => { setDrawer(null); onOpenClaim(c); }}
+                    style={{ gridTemplateColumns: "32px minmax(0,1fr) minmax(80px,25%)", padding: "10px 0", gap: 12, alignItems: "start" }}>
+                    <div className="num">{c.n}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ color: "var(--ink)" }}>{c.text}</div>
+                      <div style={{ fontSize: 10.5, color: "var(--muted-2)", marginTop: 4, fontFamily: "JetBrains Mono, monospace" }}>
+                        {c.view.toLowerCase()} · {(c.cites && c.cites.length) ? c.cites.join(", ") : "—"}
+                      </div>
+                    </div>
+                    <div className="src" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "right" }}
+                      title={c.src}>{c.src}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {drawerTab === "graph" && (
+              <div>
+                <DisagreementGraph graph={r.graph} onNode={(n) => { setDrawer(null); onOpenClaim({
+                  n: n.label, text: n.title || ("Claim " + n.label), src: n.docTitle || "graph",
+                  cites: [], view: n.kind === "dom" ? "Dominant" : n.kind === "alt" ? "Alternative" : "Minority",
+                  kind: n.kind, context: n.context || "", claimId: n.originalId || "",
+                  docId: n.docId || "", sourcePath: n.sourcePath || "", docTitle: n.docTitle || ""
+                }); }}/>
+                <div style={{ marginTop: 12, borderTop: "1px solid var(--hair)", paddingTop: 12 }}>
+                  {[["Support", supportEdges, "support", "NLI ENTAILS"], ["Contradict", contraEdges, "contra", "NLI CONTRADICTS"], ["Neutral", neutralEdges, "neutral", "NLI NEUTRAL"]].map(([lbl, ct, cls, f]) => (
+                    <div key={lbl} className="bar-row" style={{ cursor: "pointer" }}
+                      onClick={() => onOpenMetric({ label: lbl + " edges", value: ct, formula: f, desc: "", interp: "" })}>
+                      <span className="name">{lbl}</span>
+                      <div className="track"><div className={"fill " + cls} style={{ width: (total ? ct/total*100 : 0)+"%" }}/></div>
+                      <span className="num">{ct}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {drawerTab === "views" && (
+              <div>
+                <div className="callout" onClick={onOpenHypothesis} style={{ cursor: "pointer", marginBottom: 16 }}>
+                  <div className="ico"><Icon name="warn" size={18}/></div>
+                  <div>
+                    <h4>This topic is <em>{disputedLabel}</em>. EVIRAG maps where the corpus disagrees.</h4>
+                    <p>{r.confidenceReasoning || `${r.metrics.claims} extracted claims · ${r.views.length} positions synthesised.`}</p>
+                  </div>
+                </div>
+                {r.views.map((v, i) => <ViewBlock key={i} v={v} idx={i} onClaim={(c) => { setDrawer(null); onOpenClaim(c); }}/>)}
+              </div>
+            )}
+            {drawerTab === "analysis" && (
+              <div>
+                <div style={{ marginBottom: 20 }}>
+                  <div className="drawer-section-title">Confidence calibration
+                    <span style={{ marginLeft: 8, fontFamily: "JetBrains Mono, monospace", fontSize: 11, color: "var(--muted)" }}>{r.metrics.confidenceLabel}</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "8px 0 12px" }}>
+                    <div className="serif" style={{ fontSize: 36, lineHeight: 1, letterSpacing: "-0.02em" }}>{r.metrics.confidence.toFixed(2)}</div>
+                    <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 11, color: "var(--muted)" }}>/ 1.00</div>
+                  </div>
+                  {calibration.map(([k, v, c, desc], i) => (
+                    <div key={i} className="bar-row" style={{ cursor: "pointer" }}
+                      onClick={() => onOpenMetric({ label: k, value: v, formula: "weighted factor", desc, interp: "Contributes to overall confidence." })}>
+                      <span className="name">{k}</span>
+                      <div className="track"><div className={"fill " + (c || "")} style={{ width: (v*100)+"%" }}/></div>
+                      <span className="num">.{(v*100).toFixed(0)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginBottom: 20, borderTop: "1px solid var(--hair)", paddingTop: 16 }}>
+                  <div className="drawer-section-title">Disagreement metrics</div>
+                  {[
+                    ["Disagreement density", (r.metrics.disagreementDensity*100).toFixed(1)+"%", "|contradict| / |edges|", "Active controversy when > 15%."],
+                    ["Conflict ratio",        r.metrics.conflictRatio.toFixed(2),                "|contradict| / |support|", "Balance of opposing vs. agreeing edges."],
+                    ["Claim entropy",          r.metrics.claimEntropy.toFixed(2)+" bits",         "−Σ p log p over stances", "Diversity of stance distribution."],
+                    ["Visual–text mismatch",   r.metrics.visualMismatch.toFixed(2),               "1 − mean(CLIP align)", "Penalises figure–text contradictions."],
+                    ["Controversy class",      r.metrics.controversyClass,                         "temporal density derivative", "Stable | narrowing | open."]
+                  ].map(([k, v, f, d], i) => (
+                    <div key={i} className="metric" style={{ cursor: "pointer" }}
+                      onClick={() => onOpenMetric({ label: k, value: v, formula: f, desc: d, interp: d })}>
+                      <span className="lbl">{k}</span><span className="val">{v}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ borderTop: "1px solid var(--hair)", paddingTop: 16 }}>
+                  <div className="drawer-section-title">Hypothesis <span style={{ fontWeight: 400, color: "var(--muted)", fontSize: 11 }}>X-IR</span></div>
+                  <div style={{ fontFamily: "Newsreader, serif", fontSize: 14, fontStyle: "italic", color: "var(--ink-2)", margin: "8px 0 12px", lineHeight: 1.5 }}>
+                    "{r.hypothesis.centralHypothesis}"
+                  </div>
+                  {(r.hypothesis.expectedCounterclaims || []).slice(0, 3).map((c, i) => (
+                    <div key={i} style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>· {c}</div>
+                  ))}
+                </div>
+                {r.agents.length > 0 && (
+                  <div style={{ borderTop: "1px solid var(--hair)", paddingTop: 16, marginTop: 16 }}>
+                    <div className="drawer-section-title">Agent runs</div>
+                    {r.agents.map((a, i) => (
+                      <div key={i} className="agent" onClick={() => { setDrawer(null); onOpenAgent(a); }}>
+                        <div className="glyph">{a.glyph}</div>
+                        <div><div className="name">{a.name}</div><div className="role">{a.role}</div></div>
+                        <div className="stat"><strong>{a.kept}</strong> / {a.retrieved}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="results">
-      <div className="result-main">
+    <div className="results results-chat-first">
+      {/* ── Chat column ───────────────────────────────────────────────────────── */}
+      <div className="chat-col">
         <div className="q-line fade-up">
           <button className="back" onClick={onBack} title="Back"><Icon name="arrow-left" size={16}/></button>
           <div style={{ flex: 1 }}>
             <div className="q-text serif">{r.query}</div>
             <div className="q-meta">
-              <span className="pill warn" onClick={onOpenHypothesis}><Icon name="warn" size={11}/> {r.intent.dispute.replace("_", " ")}</span>
-              <span className="pill" onClick={() => onOpenMetric({ label: "Domain classification", value: r.intent.domain, formula: "Topic-classifier (phi3:mini)", desc: "Domain inferred from query embedding and corpus distribution.", interp: "Used to bias retrieval toward domain-specific corpora." })}><span className="lbl">domain</span> {r.intent.domain}</span>
-              <span className="pill" onClick={() => setTab("claims")}><span className="lbl">claims</span> {r.metrics.claims}</span>
-              <span className="pill" onClick={() => setTab("sources")}><span className="lbl">sources</span> {r.metrics.sources}</span>
-              <span className="pill" onClick={() => onOpenMetric({ label: "Confidence", value: r.metrics.confidence + " (" + r.metrics.confidenceLabel + ")", formula: "0.30·agree + 0.20·div + 0.25·(1−contra) + 0.15·(1−unver) + 0.10·visual", desc: "Calibrated confidence combining five orthogonal evidence factors.", interp: "Below 0.50 means the system recommends suspending judgement." })}><span className="lbl">conf</span> {r.metrics.confidenceLabel} · {r.metrics.confidence.toFixed(2)}</span>
-              <span className="pill" onClick={() => onOpenMetric({ label: "Disagreement density", value: (r.metrics.disagreementDensity*100).toFixed(1)+"%", formula: "|contradict_edges| / |edges|", desc: "Fraction of claim-pair edges classified as contradicting.", interp: ">15% indicates active scientific controversy." })}><span className="lbl">density</span> {(r.metrics.disagreementDensity*100).toFixed(1)}%</span>
+              <span className="pill warn" onClick={() => openDrawer("views")}><Icon name="warn" size={11}/> {r.intent.dispute.replace("_", " ")}</span>
+              <span className="pill" onClick={() => openDrawer("sources")}><span className="lbl">sources</span> {r.metrics.sources}</span>
+              <span className="pill" onClick={() => openDrawer("analysis")}><span className="lbl">conf</span> {r.metrics.confidenceLabel} · {r.metrics.confidence.toFixed(2)}</span>
             </div>
           </div>
           <button className="icon-btn" title="Share"><Icon name="share" size={15}/></button>
           <button className="icon-btn" title="Copy"><Icon name="copy" size={15}/></button>
         </div>
 
-        <div className="tabbar">
-          <button className={tab==="answer" ? "is-active" : ""} onClick={() => setTab("answer")}>
-            <span className="ico"><Icon name="sparkle" size={13}/></span> Multi-view answer
-          </button>
-          <button className={tab==="graph" ? "is-active" : ""} onClick={() => setTab("graph")}>
-            <span className="ico"><Icon name="graph" size={13}/></span> Graph <span className="count">{r.graph.nodes.length}</span>
-          </button>
-          <button className={tab==="claims" ? "is-active" : ""} onClick={() => setTab("claims")}>
-            <span className="ico"><Icon name="doc" size={13}/></span> Claims <span className="count">{r.metrics.claims}</span>
-          </button>
-          <button className={tab==="visual" ? "is-active" : ""} onClick={() => setTab("visual")}>
-            <span className="ico"><Icon name="beaker" size={13}/></span> Visual <span className="count">{r.metrics.figuresAligned}</span>
-          </button>
-          <button className={tab==="sources" ? "is-active" : ""} onClick={() => setTab("sources")}>
-            <span className="ico"><Icon name="library" size={13}/></span> Sources <span className="count">{r.metrics.sources}</span>
-          </button>
-        </div>
-
-        {tab === "answer" && (
-          <div>
+        {/* Chat history */}
+        {r.chat && r.chat.history && r.chat.history.length > 0 ? (
+          <div className="chat-history">
+            {r.chat.history.map((msg, i) => (
+              <div key={i} className={`chat-msg ${msg.role} fade-up`} style={{ animationDelay: `${i * 0.05}s` }}>
+                {msg.role === "user" ? (
+                  <div className="chat-user-bubble">
+                    <strong>Q:</strong> {msg.content}
+                  </div>
+                ) : (
+                  <div className="chat-bot-bubble card">
+                    {msg.claim && (
+                      <div className="evolving-claim" style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--hair)", color: "var(--accent)" }}>
+                        <Icon name="sparkle" size={14} style={{ marginRight: 6 }}/>
+                        <em>{msg.claim}</em>
+                      </div>
+                    )}
+                    <div className="markdown-body" dangerouslySetInnerHTML={{ __html: msg.content
+                      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                      .replace(/\*([^*\n]+?)\*/g, '<em>$1</em>')
+                      .replace(/\n/g, '<br/>')
+                      .replace(/\[(\d+)\]/g, '<span class="cite">[$1]</span>') }} />
+                  </div>
+                )}
+              </div>
+            ))}
+            {loading && <TypingIndicator pendingQuery={pendingQuery} thinkingWord={thinkingWord}/>}
+          </div>
+        ) : (
+          <>
             <div className="card fade-up direct-answer">
               <h3>Answer <span className="small">from retrieved corpus evidence</span></h3>
               <p>{r.directAnswer}</p>
             </div>
-            <div className="callout fade-up" onClick={onOpenHypothesis} style={{ cursor: "pointer" }}>
-              <div className="ico"><Icon name="warn" size={18}/></div>
-              <div>
-                <h4>This question is <em>{disputedLabel}</em>. EVIRAG answers first, then shows where the corpus disagrees.</h4>
-                <p>{r.confidenceReasoning || `Synthesis retained ${r.views.length} positions from ${r.metrics.claims} extracted claims. Tap to inspect the X-IR hypothesis trace.`}</p>
-              </div>
-            </div>
-            {r.views.map((v, i) => <ViewBlock key={i} v={v} idx={i} onClaim={onOpenClaim}/>)}
-          </div>
+            {loading && <div className="chat-history" style={{marginTop: 16}}><TypingIndicator pendingQuery={pendingQuery} thinkingWord={thinkingWord}/></div>}
+          </>
         )}
 
-        {tab === "graph" && (
-          <div>
-            <DisagreementGraph graph={r.graph} onNode={(n) => onOpenClaim({
-              n: n.label,
-              text: n.title || ("Claim " + n.label),
-              src: n.docTitle || "graph",
-              cites: [],
-              view: n.kind === "dom" ? "Dominant" : n.kind === "alt" ? "Alternative" : "Minority",
-              kind: n.kind,
-              context: n.context || "",
-              claimId: n.originalId || "",
-              docId: n.docId || "",
-              sourcePath: n.sourcePath || "",
-              docTitle: n.docTitle || ""
-            })}/>
-            <div className="card fade-up d3">
-              <h3>Edge composition <span className="small">{total} edges</span></h3>
-              <div className="bar-row" onClick={() => onOpenMetric({ label: "Support edges", value: supportEdges, formula: "NLI ENTAILS", desc: "Pairs of claims where one entails the other.", interp: "Higher = consensus or redundancy." })} style={{ cursor: "pointer" }}>
-                <span className="name">Support</span>
-                <div className="track"><div className="fill support" style={{ width: (total ? supportEdges / total * 100 : 0) + "%" }}/></div>
-                <span className="num">{supportEdges}</span>
-              </div>
-              <div className="bar-row" onClick={() => onOpenMetric({ label: "Contradict edges", value: contraEdges, formula: "NLI CONTRADICTS", desc: "Pairs of claims in direct logical opposition.", interp: "The signal EVIRAG cares about most." })} style={{ cursor: "pointer" }}>
-                <span className="name">Contradict</span>
-                <div className="track"><div className="fill contra" style={{ width: (total ? contraEdges / total * 100 : 0) + "%" }}/></div>
-                <span className="num">{contraEdges}</span>
-              </div>
-              <div className="bar-row" onClick={() => onOpenMetric({ label: "Neutral edges", value: neutralEdges, formula: "NLI NEUTRAL", desc: "Claim pairs that neither support nor contradict.", interp: "High share suggests semantic drift between subdomains." })} style={{ cursor: "pointer" }}>
-                <span className="name">Neutral</span>
-                <div className="track"><div className="fill neutral" style={{ width: (total ? neutralEdges / total * 100 : 0) + "%" }}/></div>
-                <span className="num">{neutralEdges}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {tab === "claims" && (
-          <div className="card fade-up">
-            <h3>Atomic claims <span className="small">{r.metrics.claims} extracted · {visibleClaims.length} shown</span></h3>
-            {visibleClaims.map((c, i) => (
-              <div key={i} className="claim-row" onClick={() => onOpenClaim(c)} style={{ gridTemplateColumns: "32px minmax(0, 1fr) minmax(100px, 30%)", padding: "10px 0", gap: "12px", alignItems: "start" }}>
-                <div className="num">{c.n}</div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ color: "var(--ink)" }}>{c.text}</div>
-                  <div style={{ fontSize: 10.5, color: "var(--muted-2)", marginTop: 4, fontFamily: "JetBrains Mono, monospace" }}>
-                    view: {c.view.toLowerCase()} · cited in {(c.cites && c.cites.length) ? c.cites.join(", ") : "—"}
-                  </div>
-                </div>
-                <div className="src" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "right" }} title={c.src}>{c.src}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {tab === "visual" && (
-          <div>
-            <div className="card fade-up">
-              <h3>Visual evidence (CLIP ViT-B/16) <span className="small">{r.visual.enabled ? `${r.visual.items.length} aligned · mismatch ${r.visual.mismatchScore.toFixed(2)} · ${r.visual.totalIndexedFigures || 0} indexed figures` : "disabled"}</span></h3>
-              {r.visual.enabled && r.visual.items.length > 0 ? (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14, marginTop: 10 }}>
-                  {r.visual.items.map((item) => (
-                    <button key={item.i} onClick={() => onOpenFigure(item)} style={{ background: "var(--bg)", border: "1px solid var(--hair)", borderRadius: 10, overflow: "hidden", textAlign: "left", cursor: "pointer", padding: 0, transition: "border-color 0.15s" }}
-                      onMouseOver={(e) => e.currentTarget.style.borderColor = "var(--accent)"}
-                      onMouseOut={(e) => e.currentTarget.style.borderColor = "var(--hair)"}
-                    >
-                      <div style={{ height: 140, background: "var(--panel)", display: "grid", placeItems: "center", overflow: "hidden", position: "relative" }}>
-                        {item.imageUrl ? (
-                          <img src={item.imageUrl} alt={item.caption} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} onError={(e) => { e.target.style.display = "none"; e.target.nextSibling && (e.target.nextSibling.style.display = "block"); }}/>
-                        ) : null}
-                        <span style={{ display: item.imageUrl ? "none" : "block", fontFamily: "JetBrains Mono, monospace", fontSize: 10, color: "var(--muted)", padding: 12, textAlign: "center" }}>Figure {item.figureId || item.i}</span>
-                        <div style={{ position: "absolute", top: 6, right: 6, background: item.alignmentScore > 0.3 ? "oklch(0.35 0.08 150 / 0.9)" : item.alignmentScore > 0.2 ? "oklch(0.35 0.08 60 / 0.9)" : "oklch(0.30 0.08 30 / 0.9)", color: "#fff", borderRadius: 6, padding: "2px 7px", fontSize: 10.5, fontFamily: "JetBrains Mono, monospace", fontWeight: 600 }}>
-                          {item.align}
-                        </div>
-                      </div>
-                      <div style={{ padding: "9px 11px", fontSize: 11.5, color: "var(--ink-2)", borderTop: "1px solid var(--hair)" }}>
-                        <div style={{ fontWeight: 500, color: "var(--ink)", marginBottom: 3, lineHeight: 1.35, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.claimText || item.caption}</div>
-                        <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 10, color: "var(--muted)", marginTop: 4, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          <span>p.{(item.pageNum || 0) + 1}</span>
-                          <span>{item.width}×{item.height}px</span>
-                          <span>doc {(item.paper || "").slice(0, 8)}</span>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ marginTop: 8, color: "var(--muted)" }}>
-                  {r.visual.enabled
-                    ? "No visual evidence was aligned for this query. Try enabling multi-agent mode for richer claim extraction."
-                    : "Visual grounding was disabled for this run. Enable the VLM toggle in the sidebar to activate CLIP-based figure analysis."}
-                </div>
-              )}
-            </div>
-            {r.visual.enabled && (r.visual.crossComparisons || []).length > 0 && (
-              <div className="card fade-up d2" style={{ marginTop: 12 }}>
-                <h3>Cross-paper figure comparisons <span className="small">{r.visual.crossComparisons.length} pairs</span></h3>
-                <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>When two papers contradict, CLIP compares their figures to determine if the disagreement is about interpretation (similar figures) or methodology (different figures).</p>
-                {r.visual.crossComparisons.map((cc, i) => (
-                  <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid var(--hair)", display: "flex", gap: 10, alignItems: "center", fontSize: 12 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: cc.interpretationConflict ? "oklch(0.55 0.18 30)" : "oklch(0.55 0.10 150)", flexShrink: 0 }}/>
-                    <div style={{ flex: 1 }}>
-                      <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 10.5, color: "var(--ink-2)" }}>
-                        {cc.claim1Id.slice(0, 8)} ↔ {cc.claim2Id.slice(0, 8)}
-                      </span>
-                      <span style={{ marginLeft: 8, color: cc.interpretationConflict ? "oklch(0.55 0.18 30)" : "oklch(0.55 0.10 150)", fontWeight: 500 }}>
-                        {cc.interpretationConflict
-                          ? `Interpretation conflict (${cc.similarEvidenceCount} similar figures)`
-                          : "Methodological difference (distinct figures)"}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab === "sources" && (
-          <div className="card fade-up">
-            <h3>Sources <span className="small">{r.metrics.sources} retrieved · {r.sources.length} shown</span></h3>
-            {r.sources.map(s => (
-              <button key={s.n} className="src-card" onClick={() => onOpenSource(s)}>
-                <div className="num">{s.n}</div>
-                <div>
-                  <div className="src-title">{s.title}</div>
-                  <div className="src-meta">
-                    <span>{s.venue || s.docId || "source document"}</span>
-                    {s.year ? <span>· {s.year}</span> : null}
-                    <span className={"stance " + s.stance}>{s.stance}</span>
-                  </div>
-                </div>
+        {/* Insight strip — one tap into any analytical panel. Counts grow with each turn. */}
+        {(() => {
+          const totalSources = r.chat?.total_sources ?? r.metrics.sources;
+          const totalClaims  = r.chat?.total_claims  ?? r.metrics.claims;
+          return (
+            <div className="insight-bar fade-up">
+              <button className="insight-chip" onClick={() => openDrawer("sources")}>
+                <Icon name="library" size={11}/> {totalSources} sources
               </button>
-            ))}
-          </div>
-        )}
+              {totalClaims > 0 && (
+                <button className="insight-chip" onClick={() => openDrawer("claims")}>
+                  <Icon name="doc" size={11}/> {totalClaims} claims
+                </button>
+              )}
+              {r.graph.nodes.length > 0 && (
+                <button className="insight-chip" onClick={() => openDrawer("graph")}>
+                  <Icon name="graph" size={11}/> claim graph
+                </button>
+              )}
+              {r.views.length > 0 && (
+                <button className="insight-chip" onClick={() => openDrawer("views")}>
+                  <Icon name="sparkle" size={11}/> {r.views.length} views
+                </button>
+              )}
+              <button className="insight-chip insight-chip--conf" onClick={() => openDrawer("analysis")}>
+                <Icon name="chart" size={11}/> {r.metrics.confidence.toFixed(2)} conf
+              </button>
+            </div>
+          );
+        })()}
+
+        {/* Follow-up composer */}
+        <div className="composer fade-up" style={{ marginTop: 12 }}>
+          <input
+            type="text"
+            className="composer-input"
+            style={{ padding: "14px 16px", fontSize: 14 }}
+            placeholder="Ask a follow-up question..."
+            value={followUp}
+            onChange={e => setFollowUp(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter" && followUp.trim()) { onSubmit(followUp); setFollowUp(""); }
+            }}
+          />
+          <button
+            className="send-btn"
+            style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}
+            onClick={() => { if (followUp.trim()) { onSubmit(followUp); setFollowUp(""); } }}
+            disabled={!followUp.trim()}
+          >
+            <Icon name="arrow-up" size={16} stroke={2}/>
+          </button>
+        </div>
       </div>
 
-      <aside className="result-side">
-        <div className="card fade-up d1">
-          <h3>Confidence calibration <span className="small">{r.metrics.confidenceLabel}</span></h3>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
-            <div className="serif" style={{ fontSize: 38, lineHeight: 1, letterSpacing: "-0.02em" }}>{r.metrics.confidence.toFixed(2)}</div>
-            <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 11, color: "var(--muted)" }}>/ 1.00</div>
-          </div>
-          {calibration.map(([k, v, c, desc], i) => (
-            <div key={i} className="bar-row" onClick={() => onOpenMetric({ label: k, value: v, formula: "weighted factor", desc, interp: "Contributes to overall confidence." })} style={{ cursor: "pointer" }}>
-              <span className="name">{k}</span>
-              <div className="track"><div className={"fill " + (c || "")} style={{ width: (v*100)+"%", background: c === "muted" ? "var(--muted-2)" : undefined }}/></div>
-              <span className="num">.{(v*100).toFixed(0)}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="card fade-up d2">
-          <h3>
-            Multi-agent retrieval
-            <span className="small">
-              {r.agentSummary && r.agentSummary.parallel
-                ? `parallel · median ${(r.agentSummary.median_confidence || 0).toFixed(2)}`
-                : "deliberative"}
-            </span>
-          </h3>
-          {r.agents.length ? r.agents.map((a, i) => (
-            <div key={i} className="agent" onClick={() => onOpenAgent(a)}>
-              <div className="glyph">{a.glyph}</div>
-              <div>
-                <div className="name">{a.name}</div>
-                <div className="role">{a.role}</div>
-                <div className="role">{a.stance} · conf {a.confidence.toFixed(2)}</div>
-              </div>
-              <div className="stat">
-                <strong>{a.kept}</strong> / {a.retrieved}
-                <div style={{ marginTop: 2 }}>{a.status === "error" ? "error" : `${(a.durationMs / 1000).toFixed(1)}s`}</div>
-              </div>
-            </div>
-          )) : (
-            <div style={{ color: "var(--muted)" }}>
-              This run used the fast claim-graph path, so no separate retrieval agents were launched.
-            </div>
-          )}
-        </div>
-
-        <div className="card fade-up d3">
-          <h3>Disagreement metrics</h3>
-          {[
-            ["Disagreement density", (r.metrics.disagreementDensity*100).toFixed(1)+"%", "|contradict| / |edges|", "Active controversy when > 15%."],
-            ["Conflict ratio", r.metrics.conflictRatio.toFixed(2), "|contradict| / |support|", "Balance of opposing vs. agreeing edges."],
-            ["Claim entropy", r.metrics.claimEntropy.toFixed(2)+" bits", "−Σ p log p over stances", "Diversity of stance distribution."],
-            ["Visual–text mismatch", r.metrics.visualMismatch.toFixed(2), "1 − mean(CLIP align)", "Penalises figure–text contradictions."],
-            ["Controversy class", r.metrics.controversyClass, "temporal density derivative", "Stable | narrowing | open."]
-          ].map(([k, v, f, d], i) => (
-            <div key={i} className="metric" onClick={() => onOpenMetric({ label: k, value: v, formula: f, desc: d, interp: d })}>
-              <span className="lbl">{k}</span><span className="val">{v}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="card fade-up d4" onClick={onOpenHypothesis} style={{ cursor: "pointer" }}>
-          <h3>Hypothesis <span className="small">X-IR · click to expand</span></h3>
-          <div style={{ fontFamily: "Newsreader, serif", fontSize: 14.5, lineHeight: 1.5, color: "var(--ink-2)", fontStyle: "italic" }}>
-            "{r.hypothesis.centralHypothesis}"
-          </div>
-          <div style={{ borderTop: "1px solid var(--hair)", marginTop: 10, paddingTop: 8, fontSize: 11.5, color: "var(--muted)" }}>
-            <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>expected counterclaims</div>
-            {(r.hypothesis.expectedCounterclaims || []).length ? (
-              (r.hypothesis.expectedCounterclaims || []).slice(0, 3).map((claim, i) => (
-                <div key={i}>· {claim}</div>
-              ))
-            ) : (
-              <div>· No explicit counterclaims were returned for this run.</div>
-            )}
-          </div>
-        </div>
-      </aside>
+      {/* ── Drawer overlay ─────────────────────────────────────────────────────── */}
+      {drawer && <DrawerContent/>}
     </div>
   );
+
 };
 
 window.Results = Results;
