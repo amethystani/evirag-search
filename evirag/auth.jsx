@@ -120,15 +120,19 @@ const Login = ({ onBack }) => {
   // ── Google OAuth ───────────────────────────────────────────────────────────
   const handleGoogle = async () => {
     if (!clerkAvailable) { demoLogin(); return; }
+    const appHome = window.location.origin + "/";
     try {
       await window._clerk.client.signIn.authenticateWithRedirect({
         strategy: "oauth_google",
-        redirectUrl:         window.location.origin + "/",
-        redirectUrlComplete: window.location.origin + "/",
+        redirectUrl:         appHome,
+        redirectUrlComplete: appHome,
       });
     } catch (err) {
       // Fallback: open Clerk's hosted modal
-      window._clerk.openSignIn();
+      window._clerk.openSignIn({
+        fallbackRedirectUrl: appHome,
+        forceRedirectUrl: appHome,
+      });
     }
   };
 

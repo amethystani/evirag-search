@@ -1,6 +1,13 @@
 /* global React, ReactDOM, Sidebar, Home, Results, Icon, Pages, Modal, BACKEND_URL, queryBackend, transformResult, fetchUIBootstrap, fetchQueryTracePlan, Splash, Login, TopBar, Avatar */
 const { useState, useEffect, useRef, useCallback } = React;
 
+const getAppHomeUrl = () => window.location.origin + "/";
+
+const hasClerkRedirectParams = () => {
+  const marker = window.location.search + window.location.hash;
+  return marker.includes("__clerk_status") || marker.includes("__clerk_created_session");
+};
+
 const AppInner = ({ onLogout, user }) => {
   const [view, setView] = useState("home"); // home | results | corpus | graph | agents | calibration | history | discover | profile
   const [result, setResult] = useState(null);
@@ -454,7 +461,23 @@ const App = () => {
     const clerk = window.Clerk;
     window._clerk = clerk;
 
-    clerk.load().then(() => {
+    clerk.load().then(async () => {
+      const appHome = getAppHomeUrl();
+
+      if (hasClerkRedirectParams()) {
+        try {
+          await clerk.handleRedirectCallback({
+            signInForceRedirectUrl: appHome,
+            signUpForceRedirectUrl: appHome,
+            signInFallbackRedirectUrl: appHome,
+            signUpFallbackRedirectUrl: appHome,
+          });
+          window.history.replaceState({}, document.title, appHome);
+        } catch (err) {
+          console.error("[evirag] Clerk redirect callback failed:", err);
+        }
+      }
+
       const currentUser = clerk.user;
       setUser(currentUser || null);
       setAuthStage(currentUser ? "app" : "splash");
