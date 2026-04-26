@@ -478,14 +478,15 @@ const App = () => {
         }
       }
 
-      const currentUser = clerk.user;
+      const currentUser = clerk.user || clerk.session?.user || null;
       setUser(currentUser || null);
       setAuthStage(currentUser ? "app" : "splash");
 
       // React to auth changes (sign-in, sign-out, session expiry)
-      clerk.addListener(({ user: u }) => {
-        setUser(u || null);
-        setAuthStage(u ? "app" : "splash");
+      clerk.addListener(({ user: u, session }) => {
+        const activeUser = u || session?.user || null;
+        setUser(activeUser);
+        setAuthStage(activeUser ? "app" : "splash");
       });
     }).catch(err => {
       console.error("[evirag] Clerk init failed:", err);
