@@ -1,8 +1,8 @@
-/* global React, ReactDOM, Sidebar, Home, Results, Icon, Pages, Modal, BACKEND_URL, queryBackend, transformResult, fetchUIBootstrap, fetchQueryTracePlan, Splash, Login, TopBar */
-const { useState, useEffect, useRef } = React;
+/* global React, ReactDOM, Sidebar, Home, Results, Icon, Pages, Modal, BACKEND_URL, queryBackend, transformResult, fetchUIBootstrap, fetchQueryTracePlan, Splash, Login, TopBar, Avatar */
+const { useState, useEffect, useRef, useCallback } = React;
 
-const AppInner = ({ onLogout }) => {
-  const [view, setView] = useState("home"); // home | results | corpus | graph | agents | calibration | history | discover
+const AppInner = ({ onLogout, user }) => {
+  const [view, setView] = useState("home"); // home | results | corpus | graph | agents | calibration | history | discover | profile
   const [result, setResult] = useState(null);
   const [threads, setThreads] = useState([]);
   const [bootstrap, setBootstrap] = useState(null);
@@ -14,7 +14,19 @@ const AppInner = ({ onLogout }) => {
   const [error, setError] = useState("");
   const [lastRequest, setLastRequest] = useState(null);
   const [tracePlan, setTracePlan] = useState(null);
+  // Per-user persistent sessions (Supabase)
+  const [userSessions, setUserSessions] = useState([]);
   const requestSeq = useRef(0);
+
+  // Load user sessions from Supabase
+  const refreshSessions = useCallback(async () => {
+    if (user && window.EVIRAG_DB) {
+      const sessions = await window.EVIRAG_DB.getUserSessions(user.id);
+      setUserSessions(sessions);
+    }
+  }, [user]);
+
+  useEffect(() => { refreshSessions(); }, [refreshSessions]);
 
   const closeModal = () => setModal(null);
   const openPdf = (docId) => {
@@ -61,7 +73,8 @@ const AppInner = ({ onLogout }) => {
     setTracePlan(null);
     setError("");
     setLoading(true);
-    setResult(null);
+    // Keep current result visible during load so chat history stays on screen
+    // setResult(null) would blank the whole view — we clear after new result arrives
     setView("results");
     setSbOpen(false);
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -85,7 +98,9 @@ const AppInner = ({ onLogout }) => {
       });
 
     try {
-      const raw = await queryBackend(query, options);
+      // Use the new Perplexity-style chat endpoint
+      const currentSessionId = result?.chat?.session_id || null;
+      const raw = await window.chatWithEvirag(query, currentSessionId, options);
       if (requestSeq.current !== requestId) return;
       const transformed = transformResult(raw, query);
       setResult(transformed);
@@ -93,6 +108,30 @@ const AppInner = ({ onLogout }) => {
         if (prev.some((t) => t.title === query)) return prev;
         return [{ id: "t" + Date.now(), title: query, time: "now", level: classifyThreadLevel(transformed) }, ...prev].slice(0, 6);
       });
+
+      // ── Persist to Supabase (per-user) ──────────────────────────────────────
+      if (user && raw.chat && window.EVIRAG_DB) {
+        const db  = window.EVIRAG_DB;
+        const sid = raw.chat.session_id;
+        const sessionTitle = query.slice(0, 80);
+        // Fire-and-forget — don't block UI
+        Promise.all([
+          db.saveSession(sid, user.id, sessionTitle),
+          db.saveTurn({
+            sessionId:   sid,
+            userId:      user.id,
+            turnNum:     raw.chat.turn,
+            userMessage: query,
+            answer:      raw.chat.answer,
+            claim:       raw.chat.claim,
+            sources:     raw.chat.sources || [],
+          }),
+          raw.chat.claim
+            ? db.saveUserClaim({ userId: user.id, sessionId: sid, claimText: raw.chat.claim, confidence: 0.8 })
+            : Promise.resolve(),
+          db.trackQuery(query),
+        ]).then(() => refreshSessions()).catch(console.warn);
+      }
     } catch (err) {
       if (requestSeq.current === requestId) {
         setError(err instanceof Error ? err.message : "Failed to reach the EVIRAG backend.");
@@ -102,9 +141,44 @@ const AppInner = ({ onLogout }) => {
     }
   };
 
+  // ── Resume a saved session (load turns from Supabase) ──────────────────────
+  const handleResumeSession = async (session) => {
+    if (!window.EVIRAG_DB) return;
+    const turns = await window.EVIRAG_DB.getSessionTurns(session.id);
+    if (!turns.length) return;
+    // Build synthetic result from last turn for display
+    const last = turns[turns.length - 1];
+    const synthetic = {
+      query: session.title,
+      answer: { dominant_view: null, alternative_views: [], minority_views: [] },
+      sources: (last.sources || []).map((s, i) => ({ ...s, n: i + 1, snippet: "", text: "" })),
+      claims: [],
+      statistics: {},
+      chat: {
+        session_id:   session.id,
+        answer:       last.answer || "",
+        claim:        last.claim  || "",
+        sources:      last.sources || [],
+        turn:         last.turn_num,
+        latency_ms:   0,
+        total_claims: 0,
+        total_sources: (last.sources || []).length,
+        // Reconstruct history from all turns
+        history: turns.flatMap(t => [
+          { role: "user",      content: t.user_message, turn: t.turn_num },
+          { role: "assistant", content: t.answer || "", claim: t.claim || "", sources: [], turn: t.turn_num },
+        ]),
+      },
+    };
+    setResult(transformResult(synthetic, session.title));
+    setView("results");
+    setSbOpen(false);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
+
   const goView = (v) => { setView(v); setSbOpen(false); window.scrollTo({ top: 0, behavior: "instant" }); };
 
-  const handleNew = () => goView("home");
+  const handleNew = () => { setResult(null); goView("home"); };
   const handlePickThread = (t) => handleSubmit(t.title);
   const openSidebar = () => {
     const isMobile = window.matchMedia && window.matchMedia("(max-width: 900px)").matches;
@@ -114,15 +188,24 @@ const AppInner = ({ onLogout }) => {
   const closeSidebar = () => { setSbOpen(false); setSbCollapsed(true); };
 
   const screenLabel = (
-    view === "home" ? "Home" :
-    view === "results" ? "Results" :
-    view === "corpus" ? "Corpus" :
-    view === "graph" ? "Graph" :
-    view === "agents" ? "Agents" :
+    view === "home"        ? "Home"        :
+    view === "results"     ? "Results"     :
+    view === "corpus"      ? "Corpus"      :
+    view === "graph"       ? "Graph"       :
+    view === "agents"      ? "Agents"      :
     view === "calibration" ? "Calibration" :
-    view === "history" ? "History" :
-    view === "discover" ? "Discover" : "Page"
+    view === "history"     ? "History"     :
+    view === "discover"    ? "Discover"    :
+    view === "profile"     ? "Profile"     : "Page"
   );
+
+  const handleDeleteSession = async (sessionId) => {
+    if (!window.EVIRAG_DB) return;
+    await window.EVIRAG_DB.deleteSession(sessionId);
+    refreshSessions();
+    // If currently viewing that session, go home
+    if (result?.chat?.session_id === sessionId) { setResult(null); setView("home"); }
+  };
 
   return (
     <div className={"app" + (sbCollapsed ? " sb-collapsed" : "") + (sbOpen ? " sb-open" : "")} data-screen-label={screenLabel}>
@@ -137,9 +220,14 @@ const AppInner = ({ onLogout }) => {
         threads={threads}
         stats={bootstrap && bootstrap.stats}
         onPickThread={handlePickThread}
+        onPickSession={handleResumeSession}
         isOpen={sbOpen}
         onClose={closeSidebar}
         onLogout={onLogout}
+        user={user}
+        userSessions={userSessions}
+        onDeleteSession={handleDeleteSession}
+        onRefreshSessions={refreshSessions}
       />
       <div className="main">
         {view === "home" && <Home onSubmit={handleSubmit} bootstrap={bootstrap} error={bootstrapError}/>}
@@ -148,11 +236,12 @@ const AppInner = ({ onLogout }) => {
             result={result}
             loading={loading}
             error={error}
-            pendingQuery={(result && result.query) || (lastRequest && lastRequest.query) || ""}
+            pendingQuery={(lastRequest && lastRequest.query) || (result && result.query) || ""}
             pendingOptions={(lastRequest && lastRequest.options) || {}}
             tracePlan={tracePlan}
             onBack={handleNew}
             onRetry={() => lastRequest && handleSubmit(lastRequest.query, lastRequest.options)}
+            onSubmit={(q) => handleSubmit(q, lastRequest?.options || {})}
             onOpenSource={(s) => setModal({ kind: "source", data: s })}
             onOpenClaim={(c) => setModal({ kind: "claim", data: c })}
             onOpenAgent={(a) => setModal({ kind: "agent", data: a })}
@@ -165,8 +254,9 @@ const AppInner = ({ onLogout }) => {
         {view === "graph" && <Pages.Graph bootstrap={bootstrap} onOpen={(g) => handleSubmit(g.query || g.t || g.title)}/>}
         {view === "agents" && <Pages.Agents bootstrap={bootstrap} onOpen={(a) => setModal({ kind: "agent", data: a })}/>}
         {view === "calibration" && <Pages.Calibration bootstrap={bootstrap}/>}
-        {view === "history" && <Pages.History threads={threads} onOpen={(t) => handleSubmit(t.title)}/>}
+        {view === "history" && <Pages.History user={user} userSessions={userSessions} onResumeSession={handleResumeSession} threads={threads} onOpen={(t) => handleSubmit(t.title)}/>}
         {view === "discover" && <Pages.Discover bootstrap={bootstrap} onOpen={(it) => handleSubmit(it.q || it.t || it.title)}/>}
+        {view === "profile" && <Pages.Profile user={user} onSubmit={handleSubmit} onGo={goView}/>}
       </div>
 
       {modal && modal.kind === "source" && (
@@ -338,23 +428,71 @@ Always emit stance ∈ {support, contradict, neutral}.`}
   );
 };
 
+// ── Root App — Clerk auth state machine ───────────────────────────────────────
 const App = () => {
-  const [authStage, setAuthStage] = useState(() => {
-    try { return localStorage.getItem("evirag_authed") === "1" ? "app" : "splash"; } catch { return "splash"; }
-  });
+  const [authStage, setAuthStage] = useState("loading"); // loading | splash | login | app
+  const [user, setUser]           = useState(null);
 
+  // ── Initialize Clerk on mount ─────────────────────────────────────────────
+  useEffect(() => {
+    const key = window.EVIRAG_CONFIG?.clerkKey;
+    const hasRealKey = key && !key.startsWith("YOUR_");
+
+    if (!hasRealKey || !window.Clerk) {
+      // Demo mode — no Clerk key configured
+      setAuthStage("splash");
+      // Listen for demo login from auth.jsx
+      const handler = (e) => {
+        const u = e.detail?.user;
+        if (u) { setUser(u); setAuthStage("app"); }
+      };
+      window.addEventListener("evirag:auth", handler);
+      return () => window.removeEventListener("evirag:auth", handler);
+    }
+
+    // Real Clerk initialization
+    const clerk = new window.Clerk(key);
+    window._clerk = clerk;
+
+    clerk.load().then(() => {
+      const currentUser = clerk.user;
+      setUser(currentUser || null);
+      setAuthStage(currentUser ? "app" : "splash");
+
+      // React to auth changes (sign-in, sign-out, session expiry)
+      clerk.addListener(({ user: u }) => {
+        setUser(u || null);
+        setAuthStage(u ? "app" : "splash");
+      });
+    }).catch(err => {
+      console.error("[evirag] Clerk init failed:", err);
+      setAuthStage("splash");
+    });
+  }, []);
+
+  const handleLogout = async () => {
+    if (window._clerk) {
+      await window._clerk.signOut().catch(() => {});
+    }
+    setUser(null);
+    setAuthStage("splash");
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  if (authStage === "loading") {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--muted)", fontFamily: "Inter, sans-serif", fontSize: 13 }}>
+        Loading EVIRAG…
+      </div>
+    );
+  }
   if (authStage === "splash") {
     return <Splash onGetStarted={() => setAuthStage("login")} />;
   }
   if (authStage === "login") {
-    return <Login onBack={() => setAuthStage("splash")} onLogin={() => { try { localStorage.setItem("evirag_authed", "1"); } catch {} setAuthStage("app"); }} />;
+    return <Login onBack={() => setAuthStage("splash")} />;
   }
-  const handleLogout = () => {
-    try { localStorage.removeItem("evirag_authed"); } catch {}
-    setAuthStage("splash");
-  };
-
-  return <AppInner onLogout={handleLogout} />;
+  return <AppInner onLogout={handleLogout} user={user} />;
 };
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);

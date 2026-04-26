@@ -137,46 +137,236 @@ const Pages = {
     );
   },
 
-  History: ({ threads, onOpen }) => (
-    <div className="page">
-      <h1>History</h1>
-      <div className="lede">All inquiries opened in this browser session are listed with their returned disagreement level.</div>
-      <div className="grid-2">
-        {threads.length ? threads.map(t => (
-          <button key={t.id} className="tile" onClick={() => onOpen(t)}>
-            <h4>{t.title}</h4>
-            <p>{t.time} · {t.level === "high" ? "high disagreement" : t.level === "med" ? "contested" : "narrowing"}</p>
-            <div className="meta">re-open inquiry →</div>
-          </button>
-        )) : (
+  // ── History: persistent per-user sessions from Supabase ──────────────────
+  History: ({ user, userSessions, onResumeSession, threads, onOpen }) => {
+    const sessions = userSessions || [];
+    const hasUser  = !!user;
+    return (
+      <div className="page">
+        <h1>History</h1>
+        <div className="lede">
+          {hasUser
+            ? `${sessions.length} saved session${sessions.length !== 1 ? "s" : ""} across all devices — click any to resume.`
+            : "Sign in to save and access history across devices. Showing this browser session only."}
+        </div>
+
+        {/* Supabase persistent sessions */}
+        {hasUser && sessions.length > 0 && (
+          <>
+            <h3 style={{ fontSize: 13, color: "var(--muted)", marginBottom: 10, fontFamily: "Inter, sans-serif" }}>
+              SAVED SESSIONS
+            </h3>
+            <div className="grid-2" style={{ marginBottom: 24 }}>
+              {sessions.map(s => (
+                <button key={s.id} className="tile" onClick={() => onResumeSession && onResumeSession(s)}>
+                  <h4 style={{ fontSize: 14 }}>{s.title}</h4>
+                  <p style={{ fontSize: 12 }}>
+                    {window.timeAgo ? window.timeAgo(s.updated_at) : s.updated_at?.slice(0, 10)}
+                  </p>
+                  <div className="meta">resume session →</div>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Browser-session threads (always shown) */}
+        {threads.length > 0 && (
+          <>
+            <h3 style={{ fontSize: 13, color: "var(--muted)", marginBottom: 10, fontFamily: "Inter, sans-serif" }}>
+              THIS SESSION
+            </h3>
+            <div className="grid-2">
+              {threads.map(t => (
+                <button key={t.id} className="tile" onClick={() => onOpen(t)}>
+                  <h4>{t.title}</h4>
+                  <p>{t.time} · {t.level === "high" ? "high disagreement" : t.level === "med" ? "contested" : "narrowing"}</p>
+                  <div className="meta">re-open inquiry →</div>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {!threads.length && (!hasUser || !sessions.length) && (
           <div className="tile">
             <h4>No inquiries yet</h4>
             <p>Submit a corpus query to create the first history entry.</p>
           </div>
         )}
       </div>
-    </div>
-  ),
+    );
+  },
 
+  // ── Discover: popular queries from Supabase, grouped by topic ────────────
   Discover: ({ bootstrap, onOpen }) => {
-    if (!bootstrap) return <LoadingPage title="Discover"/>;
-    const tabs = ((bootstrap.topics || {}).tabs || []);
-    const items = tabs.flatMap((tab) => (tab.items || []).map((item) => ({ ...item, tab: tab.label }))).slice(0, 8);
+    const [popular, setPopular] = useState([]);
+    const [activeTab, setActiveTab] = useState("trending");
+
+    useEffect(() => {
+      if (window.EVIRAG_DB) {
+        window.EVIRAG_DB.getPopularQueries(40).then(setPopular).catch(() => {});
+      }
+    }, []);
+
+    const CATEGORY_LABELS = {
+      biology: "🧬 Biology", neuroscience: "🧠 Neuroscience",
+      physics: "⚛️ Physics", chemistry: "🧪 Chemistry",
+      climate: "🌍 Climate", ai: "🤖 AI & ML",
+      medicine: "💊 Medicine", general: "🔬 General",
+    };
+
+    const fallbackItems = ((bootstrap?.topics?.tabs || [])
+      .flatMap(t => (t.items || []).map(i => ({ ...i, category: "general" }))).slice(0, 12))
+      .map(i => ({ query: i.title || i.q, category: "general", count: 1 }));
+
+    const items = popular.length ? popular : fallbackItems;
+
+    // Group by category
+    const byCategory = {};
+    items.forEach(item => {
+      const cat = item.category || "general";
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(item);
+    });
+    const categories = Object.keys(byCategory).sort((a, b) => byCategory[b].length - byCategory[a].length);
+
+    const recentItems = [...items].sort((a, b) => new Date(b.last_seen || 0) - new Date(a.last_seen || 0)).slice(0, 12);
+    const trendingItems = items.slice(0, 12);
+
+    const displayItems = activeTab === "trending" ? trendingItems
+      : activeTab === "recent" ? recentItems
+      : (byCategory[activeTab] || []);
+
     return (
       <div className="page">
         <h1>Discover</h1>
-        <div className="lede">Corpus-derived inquiries ranked from indexed documents, claims, and graph clusters.</div>
-        <div className="grid-2">
-          {items.map((it, i) => (
-            <button key={it.claim_id || it.doc_id || i} className="tile" onClick={() => onOpen(it)}>
-              <h4>{it.title || it.q}</h4>
-              <p>{it.meta}</p>
+        <div className="lede">
+          Popular queries from the EVIRAG community — ranked by frequency and grouped by research area.
+          {popular.length === 0 && " Start querying to populate this page."}
+        </div>
+
+        {/* Tab strip */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 18 }}>
+          {["trending", "recent", ...categories].map(tab => (
+            <button
+              key={tab}
+              className={"chip" + (activeTab === tab ? " is-active" : "")}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab === "trending" ? "🔥 Trending" :
+               tab === "recent"   ? "🕐 Recent"   :
+               (CATEGORY_LABELS[tab] || tab)}
             </button>
           ))}
         </div>
+
+        <div className="grid-2">
+          {displayItems.length ? displayItems.map((it, i) => (
+            <button key={it.query + i} className="tile" onClick={() => onOpen({ q: it.query, title: it.query })}>
+              <h4 style={{ fontSize: 14 }}>{it.query}</h4>
+              <p style={{ fontSize: 12 }}>
+                {CATEGORY_LABELS[it.category] || it.category}
+                {it.count > 1 ? ` · ${it.count} searches` : ""}
+              </p>
+              <div className="meta">explore →</div>
+            </button>
+          )) : (
+            <div className="tile">
+              <h4>No queries yet</h4>
+              <p>Be the first to explore this topic.</p>
+            </div>
+          )}
+        </div>
       </div>
     );
-  }
+  },
+
+  // ── Profile page ──────────────────────────────────────────────────────────
+  Profile: ({ user, onSubmit, onGo }) => {
+    const [stats, setStats]   = useState(null);
+    const [claims, setClaims] = useState([]);
+
+    useEffect(() => {
+      if (user && window.EVIRAG_DB) {
+        window.EVIRAG_DB.getUserStats(user.id).then(setStats).catch(() => {});
+        window.EVIRAG_DB.getUserClaims(user.id, 10).then(setClaims).catch(() => {});
+      }
+    }, [user]);
+
+    if (!user) return (
+      <div className="page">
+        <h1>Profile</h1>
+        <div className="lede">Sign in to view your profile and research stats.</div>
+      </div>
+    );
+
+    const displayName = user.fullName || user.firstName || "Researcher";
+    const email = user.primaryEmailAddress?.emailAddress || "";
+    const joinedDate = user.createdAt
+      ? new Date(user.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "long" })
+      : null;
+
+    return (
+      <div className="page">
+        <h1>Profile</h1>
+
+        {/* Identity card */}
+        <div className="card" style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 24, padding: 20 }}>
+          {window.Avatar && <window.Avatar user={user} size={56}/>}
+          <div>
+            <div style={{ fontSize: 20, fontFamily: "Newsreader, serif", fontWeight: 600 }}>{displayName}</div>
+            {email && <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>{email}</div>}
+            {joinedDate && <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 4 }}>Member since {joinedDate}</div>}
+          </div>
+        </div>
+
+        {/* Stats row */}
+        {stats && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
+            {[
+              { label: "Sessions",         value: stats.sessions },
+              { label: "Queries asked",    value: stats.turns    },
+              { label: "Claims discovered", value: stats.claims  },
+            ].map(({ label, value }) => (
+              <div key={label} className="card" style={{ textAlign: "center", padding: "14px 8px" }}>
+                <div style={{ fontSize: 28, fontFamily: "Newsreader, serif", fontWeight: 600 }}>{value}</div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Recent claims */}
+        {claims.length > 0 && (
+          <>
+            <h3 style={{ fontSize: 13, color: "var(--muted)", marginBottom: 10, fontFamily: "Inter, sans-serif" }}>
+              YOUR RECENT CLAIMS
+            </h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
+              {claims.map((c, i) => (
+                <div key={i} className="card" style={{ padding: "10px 14px" }}>
+                  <div style={{ fontSize: 13, fontFamily: "Newsreader, serif", fontStyle: "italic", color: "var(--ink-2)", lineHeight: 1.5 }}>
+                    {c.claim_text}
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>
+                    Confidence {(c.confidence * 100).toFixed(0)}% ·{" "}
+                    {window.timeAgo ? window.timeAgo(c.created_at) : c.created_at?.slice(0, 10)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Actions */}
+        <div style={{ display: "flex", gap: 10 }}>
+          <button className="chip" onClick={() => onGo("history")}>View all sessions</button>
+          <button className="chip" onClick={() => onGo("discover")}>Explore Discover</button>
+        </div>
+      </div>
+    );
+  },
 };
 
 window.Pages = Pages;
