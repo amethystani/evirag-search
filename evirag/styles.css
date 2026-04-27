@@ -893,6 +893,49 @@ input, textarea { font-family: inherit; color: inherit; }
 .bar-row .fill.accent { background: var(--accent); }
 .bar-row .num { font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: var(--muted); text-align: right; }
 
+/* ── Agent deliberation panel (inline in results chat column) ──────────────── */
+.agent-delib {
+  border: 1px solid var(--hair);
+  border-radius: 12px;
+  background: var(--surface);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.agent-delib-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hair);
+  background: var(--panel);
+  gap: 12px;
+}
+.delib-stat {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  color: var(--muted-2);
+  background: var(--bg);
+  padding: 2px 7px;
+  border-radius: 20px;
+  border: 1px solid var(--hair);
+  white-space: nowrap;
+}
+.agent-delib-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+}
+.agent-delib-card {
+  padding: 12px 12px 10px;
+  border-right: 1px solid var(--hair);
+  cursor: pointer;
+  transition: filter 0.12s;
+  display: flex;
+  flex-direction: column;
+}
+.agent-delib-card:last-child { border-right: 0; }
+.agent-delib-card:hover { filter: brightness(0.97); }
+
 /* agents card */
 .agent {
   display: grid;
@@ -1204,6 +1247,15 @@ input, textarea { font-family: inherit; color: inherit; }
 @media (max-width: 900px) {
   .page { padding: 6px 16px 60px; }
   .page h1 { font-size: 26px; }
+}
+
+/* ── Agent deliberation grid — 2-col on narrow screens ──────────────────── */
+@media (max-width: 700px) {
+  .agent-delib-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .agent-delib-card:nth-child(2n) { border-right: 0; }
+  .agent-delib-card:nth-child(n+3) { border-top: 1px solid var(--hair); }
 }
 
 /* scrollbar */

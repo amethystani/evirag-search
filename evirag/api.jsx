@@ -332,10 +332,14 @@ function transformResult(data, query) {
   const traceModels = (((data.trace || {}).models || {}).query_time_models || {});
   const agentModelMap = traceModels.agents || {};
   const agentDefs = [
-    { key: "precision", glyph: "P", name: "Precision",      role: "Strict semantic · high-confidence support",  model: "unknown", k: 3, retr: "cosine ≥ 0.78" },
-    { key: "recall", glyph: "R", name: "Recall",            role: "Expansive semantic · broad coverage",         model: "unknown", k: 5, retr: "MMR λ=0.3"      },
-    { key: "skeptic", glyph: "S", name: "Skeptic",          role: "Adversarial · contradiction-seeking",         model: "unknown", k: 4, retr: "neg-augmented"   },
-    { key: "counterfactual", glyph: "C", name: "Counterfactual", role: "Alternative explanations · what-if reasoning", model: "unknown", k: 3, retr: "hyp. perturb" }
+    { key: "builder",   glyph: "B", name: "Builder",   role: "Builds the strongest supporting case for the dominant view",      model: "unknown", k: 6, retr: "cosine-support"  },
+    { key: "skeptic",   glyph: "S", name: "Skeptic",   role: "Adversarial retrieval · contradiction and counter-evidence",       model: "unknown", k: 6, retr: "neg-augmented"  },
+    { key: "archivist", glyph: "A", name: "Archivist", role: "Grounds claims in peS2o source metadata and citation diversity",   model: "unknown", k: 5, retr: "citation-first"  },
+    { key: "judge",     glyph: "J", name: "Judge",     role: "Calibrates confidence and flags unverified assumptions",           model: "unknown", k: 4, retr: "verification"   },
+    // Legacy keys kept for backward compatibility
+    { key: "precision",      glyph: "P", name: "Precision",      role: "Strict semantic · high-confidence support",  model: "unknown", k: 3, retr: "cosine ≥ 0.78" },
+    { key: "recall",         glyph: "R", name: "Recall",         role: "Expansive semantic · broad coverage",         model: "unknown", k: 5, retr: "MMR λ=0.3"     },
+    { key: "counterfactual", glyph: "C", name: "Counterfactual", role: "Alternative explanations · what-if reasoning", model: "unknown", k: 3, retr: "hyp. perturb" },
   ];
   const agentDefMap = Object.fromEntries(agentDefs.map((a) => [a.key, a]));
   const agentDetails = (data.agent_details || ((data.agent_outputs || {}).agents) || []);
@@ -344,7 +348,7 @@ function transformResult(data, query) {
     const def = agentDefMap[key] || {
       key,
       glyph: key ? key[0].toUpperCase() : "A",
-      name: key ? key.replace(/_/g, " ") : "Agent",
+      name: key ? (key.charAt(0).toUpperCase() + key.slice(1)) : "Agent",
       role: "Deliberative retrieval agent",
       model: "unknown",
       k: 0,
@@ -352,15 +356,20 @@ function transformResult(data, query) {
     };
     return {
       ...def,
-      model: agentModelMap[key] || def.model,
-      retrieved: detail.num_chunks || 0,
-      kept: detail.num_claims || 0,
-      stance: detail.stance || "neutral",
-      confidence: detail.confidence || 0,
-      reasoning: detail.reasoning || "",
-      status: detail.status || "ok",
-      durationMs: detail.duration_ms || 0,
-      retrievalQuery: detail.retrieval_query || "",
+      // Prefer backend-provided name/glyph/role (richer than local defaults)
+      name:           detail.name  || def.name,
+      glyph:          detail.glyph || def.glyph,
+      role:           detail.role  || def.role,
+      model:          detail.model || agentModelMap[key] || def.model,
+      retrieved:      detail.num_chunks          || 0,
+      kept:           detail.num_claims          || 0,
+      stance:         detail.stance              || "neutral",
+      confidence:     detail.confidence          || 0,
+      reasoning:      detail.reasoning           || "",
+      status:         detail.status              || "ok",
+      durationMs:     detail.duration_ms         || 0,
+      retrievalQuery: detail.retrieval_query      || "",
+      topSources:     detail.top_sources          || [],
       parallel: !!((data.agent_outputs || {}).parallel)
     };
   });
@@ -533,7 +542,7 @@ function buildQueryConfig(options = {}) {
     backend:                  "local",
     depth_vs_speed:           wantsFullPipeline ? "balanced" : "fast",
     auto_fallback_to_full:    wantsFullPipeline,
-    enabled_agents:           wantsFullPipeline ? ["precision", "recall", "skeptic", "counterfactual"] : [],
+    enabled_agents:           wantsFullPipeline ? ["builder", "skeptic", "archivist", "judge"] : [],
     use_epistemic_divergence: true,
     use_causal_attribution:   false,
     use_temporal_tracking:    true,
@@ -679,15 +688,15 @@ function fallbackUIBootstrap() {
   };
 }
 
-function shouldFetchUIBootstrap() {
-  const host = window.location.hostname;
-  return host === "localhost" || host === "127.0.0.1" || window.EVIRAG_CONFIG?.enableBackendBootstrap === true;
-}
-
 async function fetchUIBootstrap() {
-  if (!shouldFetchUIBootstrap()) return fallbackUIBootstrap();
   try {
-    return await fetchJson("/api/ui/bootstrap?backend=local");
+    // Add an 8-second timeout so cold HF Space starts don't block the UI indefinitely
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const r = await fetch(`${BACKEND_URL}/api/ui/bootstrap`, { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!r.ok) throw new Error(`Backend ${r.status}`);
+    return r.json();
   } catch (err) {
     console.warn("[api] using fallback bootstrap:", err instanceof Error ? err.message : err);
     return fallbackUIBootstrap();

@@ -117,14 +117,30 @@ def _fetch_faiss_sources(query: str, k: int = 8):
         sources: List[Dict] = []
         scores:  List[float] = []
         for p in papers:
-            excerpt = (p.get("text_excerpt") or "").strip()
+            # Try all common field names the FAISS search space may use
+            excerpt = (
+                p.get("text_excerpt") or
+                p.get("text") or
+                p.get("abstract") or
+                p.get("excerpt") or
+                p.get("body_text") or
+                p.get("content") or
+                p.get("paragraph_text") or
+                ""
+            ).strip()
+            if not excerpt:
+                # Last resort: join any string values that look like text
+                for v in p.values():
+                    if isinstance(v, str) and len(v) > 80 and not v.startswith("http"):
+                        excerpt = v.strip()
+                        break
             sources.append({
-                "n":       p["rank"],
-                "title":   p.get("title") or "Unknown",
-                "year":    p.get("year"),
+                "n":       p.get("rank", len(sources) + 1),
+                "title":   p.get("title") or p.get("paper_title") or "Unknown",
+                "year":    p.get("year") or p.get("publication_year"),
                 "snippet": excerpt[:300],
                 "doi":     p.get("doi") or "",
-                "source":  p.get("source") or "",
+                "source":  p.get("source") or p.get("venue") or p.get("journal") or "",
             })
             scores.append(float(p.get("score", 768)))
         top_dist = min(scores) if scores else 768
@@ -654,6 +670,11 @@ async def chat(request: ChatRequest):
                 "status":               ar["status"],
                 "reasoning":            ar["synthesis"] or "No synthesis returned.",
                 "retrieval_query":      ar["retrieval_query"],
+                # Top 3 paper titles this agent retrieved — shown in UI agent cards
+                "top_sources": [
+                    {"title": s.get("title", ""), "year": s.get("year"), "snippet": s.get("snippet", "")[:120]}
+                    for s in ar.get("sources", [])[:3]
+                ],
             }
             for ar in agent_results
         ]

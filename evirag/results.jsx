@@ -75,6 +75,125 @@ const ViewBlock = ({ v, idx, onClaim }) => (
   </div>
 );
 
+// ── Agent Deliberation Panel ───────────────────────────────────────────────────
+// Shown inline in the chat column when 4-agent mode was used.
+// Lets users see each agent's stance, paper count, confidence and 1-sentence synthesis.
+const STANCE_COLORS = {
+  support: { border: "var(--support)", badge: "oklch(0.50 0.07 150)", text: "oklch(0.38 0.07 150)", bg: "oklch(0.97 0.02 150)" },
+  contra:  { border: "var(--contra)",  badge: "oklch(0.50 0.13 30)",  text: "oklch(0.42 0.13 30)",  bg: "oklch(0.97 0.03 30)"  },
+  neutral: { border: "var(--hair-2)",  badge: "var(--muted-2)",       text: "var(--muted)",          bg: "var(--panel)"         },
+};
+
+const AgentDeliberationPanel = ({ agents, onOpenAgent }) => {
+  const [expanded, setExpanded] = useState(true);
+  if (!agents || agents.length === 0) return null;
+
+  const totalPapers = agents.reduce((s, a) => s + (a.retrieved || 0), 0);
+  const maxDuration = Math.max(...agents.map(a => a.durationMs || 0));
+  const hasReasoning = agents.some(a => a.reasoning && a.reasoning !== "No synthesis returned.");
+
+  return (
+    <div className="agent-delib fade-up" style={{ animationDelay: "0.08s" }}>
+      {/* Header */}
+      <div className="agent-delib-hd" onClick={() => setExpanded(e => !e)} style={{ cursor: "pointer" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ color: "var(--accent)", display: "flex" }}><Icon name="cpu" size={13}/></span>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--ink-2)" }}>
+            4-agent deliberation
+          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span className="delib-stat">{totalPapers} papers retrieved</span>
+          {maxDuration > 0 && <span className="delib-stat">{(maxDuration / 1000).toFixed(1)}s parallel</span>}
+          <span style={{ color: "var(--muted)", display: "flex" }}><Icon name={expanded ? "arrow-up" : "chevron-down"} size={12}/></span>
+        </div>
+      </div>
+
+      {/* Agent cards */}
+      {expanded && (
+        <div className="agent-delib-grid">
+          {agents.map((a, i) => {
+            const c = STANCE_COLORS[a.stance] || STANCE_COLORS.neutral;
+            const hasView = a.reasoning && a.reasoning !== "No synthesis returned.";
+            return (
+              <div key={a.key || i}
+                className="agent-delib-card"
+                style={{ borderTop: `3px solid ${c.border}`, background: c.bg }}
+                onClick={() => onOpenAgent(a)}
+                title={`Click to inspect ${a.name} agent details`}
+              >
+                {/* Card header: badge + name + stance */}
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+                  <div style={{
+                    width: 26, height: 26, flexShrink: 0,
+                    borderRadius: 7, background: c.badge,
+                    display: "grid", placeItems: "center",
+                    fontFamily: "Newsreader, serif", fontStyle: "italic",
+                    fontSize: 14, color: "#fff", fontWeight: 600,
+                  }}>{a.glyph}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink)", lineHeight: 1.3 }}>{a.name}</div>
+                    <div style={{ fontSize: 10, color: c.text, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", marginTop: 1 }}>{a.stance}</div>
+                  </div>
+                </div>
+
+                {/* Synthesis sentence — the agent's 1-sentence contribution */}
+                {hasView ? (
+                  <div style={{
+                    fontSize: 12, color: "var(--ink-2)", lineHeight: 1.55,
+                    marginBottom: 8, fontFamily: "Newsreader, serif",
+                    fontStyle: "italic", minHeight: 48
+                  }}>
+                    "{a.reasoning}"
+                  </div>
+                ) : (
+                  <div style={{
+                    fontSize: 11, color: "var(--muted-2)", lineHeight: 1.5,
+                    marginBottom: 8, fontStyle: "italic", minHeight: 48
+                  }}>
+                    {a.retrieved > 0
+                      ? `Retrieved ${a.retrieved} papers — synthesis in progress.`
+                      : "No corpus evidence found for this agent's retrieval query."}
+                  </div>
+                )}
+
+                {/* Stats row */}
+                <div style={{
+                  display: "flex", gap: 10, flexWrap: "wrap",
+                  fontFamily: "JetBrains Mono, monospace", fontSize: 10, color: "var(--muted-2)",
+                  borderTop: "1px solid var(--hair)", paddingTop: 6, marginTop: "auto"
+                }}>
+                  <span><strong style={{ color: "var(--ink)", fontWeight: 600 }}>{a.retrieved}</strong> papers</span>
+                  <span>conf <strong style={{ color: "var(--ink)", fontWeight: 600 }}>{(a.confidence || 0).toFixed(2)}</strong></span>
+                  {a.durationMs > 0 && <span>{a.durationMs}ms</span>}
+                </div>
+
+                {/* Top sources micro-list */}
+                {a.topSources && a.topSources.length > 0 && (
+                  <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 2 }}>
+                    {a.topSources.slice(0, 2).map((s, si) => (
+                      <div key={si} style={{ fontSize: 10, color: "var(--muted)", lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        · {s.title}{s.year ? ` (${s.year})` : ""}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Footer note */}
+      {expanded && hasReasoning && (
+        <div style={{ fontSize: 10.5, color: "var(--muted)", padding: "6px 0 2px", fontStyle: "italic" }}>
+          Each agent ran an independent retrieval pass. The answer above synthesises all four perspectives.
+        </div>
+      )}
+    </div>
+  );
+};
+
 const DisagreementGraph = ({ graph, onNode }) => {
   const W = 640, H = 320, pad = 28;
   const pos = (n) => ({ x: pad + n.x * (W - pad * 2), y: pad + n.y * (H - pad * 2) });
@@ -473,6 +592,11 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
             </div>
             {loading && <div className="chat-history" style={{marginTop: 16}}><TypingIndicator pendingQuery={pendingQuery} thinkingWord={thinkingWord}/></div>}
           </>
+        )}
+
+        {/* Agent Deliberation Panel — visible when 4-agent mode was used */}
+        {r.agents && r.agents.length > 0 && (
+          <AgentDeliberationPanel agents={r.agents} onOpenAgent={onOpenAgent}/>
         )}
 
         {/* Insight strip — one tap into any analytical panel. Counts grow with each turn. */}
