@@ -101,74 +101,227 @@ class TracePlanRequest(BaseModel):
 # ── Session store ──────────────────────────────────────────────────────────────
 _chat_sessions: Dict[str, Dict] = {}
 
+# ── Full-text paper cache (paper_id → full text string) ───────────────────────
+_paper_text_cache: Dict[str, str] = {}
 
-# ── FAISS search ───────────────────────────────────────────────────────────────
-def _fetch_faiss_sources(query: str, k: int = 8):
-    import requests as _req
+# ── S2 API helpers ─────────────────────────────────────────────────────────────
+_S2_BATCH_URL = "https://api.semanticscholar.org/graph/v1/paper/batch"
+_S2_FIELDS    = "externalIds,openAccessPdf,abstract"
+
+async def _s2_batch_meta(corpus_ids: List[str]) -> Dict[str, Dict]:
+    """One S2 API call → ArXiv IDs + open-access PDF URLs for all papers."""
+    if not corpus_ids:
+        return {}
     try:
-        resp = _req.post(
-            f"{SEARCH_URL}/search",
-            json={"query": query, "k": k},
-            timeout=25,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        papers = data.get("results", [])
-        sources: List[Dict] = []
-        scores:  List[float] = []
-        for p in papers:
-            # Try all common field names the FAISS search space may use for full text
-            excerpt = (
-                p.get("text_excerpt") or
-                p.get("text") or
-                p.get("abstract") or
-                p.get("excerpt") or
-                p.get("body_text") or
-                p.get("content") or
-                p.get("paragraph_text") or
-                ""
-            ).strip()
-            if not excerpt:
-                # Last resort: scan all values for a long text string
-                for v in p.values():
-                    if isinstance(v, str) and len(v) > 80 and not v.startswith("http"):
-                        excerpt = v.strip()
-                        break
-            title = (p.get("title") or p.get("paper_title") or "Unknown").strip()
-            year  = p.get("year") or p.get("publication_year")
-            src   = p.get("source") or p.get("venue") or p.get("journal") or ""
-            # If the search space only returns metadata (no full text), synthesise
-            # a descriptive snippet from the paper's bibliographic info so that
-            # the LLM synthesis call still has meaningful context to work from.
-            if not excerpt and title and title != "Unknown":
-                parts = [f'"{title}"']
-                if year:
-                    parts.append(f"({year})")
-                if src:
-                    parts.append(f"in {src}")
-                excerpt = " ".join(parts)
-            sources.append({
-                "n":       p.get("rank", len(sources) + 1),
-                "title":   title,
-                "year":    year,
-                "snippet": excerpt[:300],
-                "doi":     p.get("doi") or "",
-                "source":  src,
-            })
-            scores.append(float(p.get("score", 768)))
-        top_dist = min(scores) if scores else 768
-        relevance = round(max(0.0, 1.0 - top_dist / 768), 3)
-        return sources, relevance
+        import httpx
+        ids = [f"CorpusID:{cid}" for cid in corpus_ids]
+        async with httpx.AsyncClient(timeout=12) as client:
+            resp = await client.post(
+                f"{_S2_BATCH_URL}?fields={_S2_FIELDS}",
+                json={"ids": ids},
+                headers={"Content-Type": "application/json"},
+            )
+        data = resp.json() if isinstance(resp.json(), list) else []
+        return {cid: (entry or {}) for cid, entry in zip(corpus_ids, data)}
+    except Exception as e:
+        print(f"[fulltext] S2 batch error: {e}")
+        return {}
+
+
+async def _fetch_arxiv_text(arxiv_id: str) -> str:
+    """Fetch the full paper text from ar5iv (arXiv → clean HTML renderer).
+    Returns up to 15 000 chars covering abstract, intro, methods, results,
+    discussion, and conclusion — the whole paper in reading order.
+    """
+    from html.parser import HTMLParser as _HP
+    import httpx, re as _re
+
+    class _Strip(_HP):
+        """Minimal HTML → text extractor using only stdlib."""
+        _SKIP = {"script", "style", "nav", "header", "footer", "figure",
+                 "table", "cite", "references", "bibliography"}
+        def __init__(self):
+            super().__init__()
+            self.parts: List[str] = []
+            self._depth = 0
+        def handle_starttag(self, tag, attrs):
+            if tag.lower() in self._SKIP:
+                self._depth += 1
+        def handle_endtag(self, tag):
+            if tag.lower() in self._SKIP and self._depth:
+                self._depth -= 1
+        def handle_data(self, data):
+            if not self._depth:
+                chunk = data.strip()
+                if chunk:
+                    self.parts.append(chunk)
+
+    try:
+        url = f"https://ar5iv.labs.arxiv.org/html/{arxiv_id}"
+        async with httpx.AsyncClient(timeout=22, follow_redirects=True) as cl:
+            resp = await cl.get(url, headers={"User-Agent": "EVIRAG/1.0 (research)"})
+        if resp.status_code != 200:
+            return ""
+        parser = _Strip()
+        parser.feed(resp.text)
+        text = " ".join(parser.parts)
+        text = _re.sub(r"\s{3,}", " ", text).strip()
+        print(f"[fulltext] arXiv {arxiv_id} → {len(text):,} chars")
+        return text[:15000]
+    except Exception as e:
+        print(f"[fulltext] arXiv fetch error {arxiv_id}: {e}")
+        return ""
+
+
+async def _fetch_pdf_text(url: str) -> str:
+    """Download an open-access PDF and extract its text (first 20 pages)."""
+    try:
+        import httpx, io
+        async with httpx.AsyncClient(timeout=28, follow_redirects=True) as cl:
+            resp = await cl.get(url, headers={"User-Agent": "EVIRAG/1.0 (research)"})
+        if resp.status_code != 200 or len(resp.content) < 2000:
+            return ""
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(io.BytesIO(resp.content))
+            pages  = [reader.pages[i].extract_text() or "" for i in range(min(20, len(reader.pages)))]
+            text   = "\n".join(pages)
+        except Exception:
+            return ""
+        import re as _re
+        text = _re.sub(r"\s{3,}", " ", text).strip()
+        print(f"[fulltext] PDF {url[:60]} → {len(text):,} chars")
+        return text[:15000]
+    except Exception as e:
+        print(f"[fulltext] PDF error {url[:60]}: {e}")
+        return ""
+
+
+async def _enrich_paper_text(paper_id: str, s2_entry: Dict, fallback: str) -> str:
+    """Best available text for a single paper, with in-memory caching.
+
+    Priority:
+      1. arXiv HTML  — full paper (up to 15 000 chars)
+      2. Open-access PDF — full paper (up to 15 000 chars)
+      3. S2 abstract  — often longer / cleaner than our stored excerpt
+      4. FAISS text_excerpt — the 2 000-char fallback we always have
+    """
+    if paper_id in _paper_text_cache:
+        cached = _paper_text_cache[paper_id]
+        return cached
+
+    text = ""
+    ext   = s2_entry.get("externalIds") or {}
+    arxiv = ext.get("ArXiv") or ext.get("arxiv")
+    pdf_url = (s2_entry.get("openAccessPdf") or {}).get("url")
+
+    if arxiv:
+        text = await _fetch_arxiv_text(arxiv)
+
+    if not text and pdf_url:
+        text = await _fetch_pdf_text(pdf_url)
+
+    if not text:
+        text = (s2_entry.get("abstract") or "").strip()
+
+    if not text:
+        text = fallback
+
+    _paper_text_cache[paper_id] = text
+    return text
+
+
+# ── FAISS search + full-text enrichment ───────────────────────────────────────
+async def _fetch_faiss_sources_enriched(query: str, k: int = 8):
+    """
+    1. POST /search to the FAISS space (5 ms)
+    2. One S2 batch call to get ArXiv IDs + open-access PDF URLs (~600 ms)
+    3. Parallel per-paper full-text fetch (arXiv HTML or PDF, ~1-2 s)
+    4. Return sources with 'full_text' (up to 15 000 chars) and 'snippet' (500 chars).
+
+    All network calls run concurrently; already-cached papers are free.
+    """
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=28) as cl:
+            resp = await cl.post(f"{SEARCH_URL}/search", json={"query": query, "k": k})
+            resp.raise_for_status()
+            data = resp.json()
     except Exception as e:
         print(f"[chat] FAISS backend unavailable: {e}")
         return [], 0.5
+
+    papers = data.get("results", [])
+    if not papers:
+        return [], 0.5
+
+    # Map corpus IDs for S2 batch
+    corpus_ids = []
+    for p in papers:
+        raw = p.get("openalex_id", "")
+        corpus_ids.append(raw.replace("pes2o:", "") if raw else "")
+
+    # Batch S2 metadata + all full-text fetches in parallel
+    s2_map = await _s2_batch_meta([c for c in corpus_ids if c])
+
+    enrich_tasks = []
+    for p, cid in zip(papers, corpus_ids):
+        # Best stored text we already have
+        fallback = (
+            p.get("text_excerpt") or p.get("text") or
+            p.get("abstract") or p.get("excerpt") or ""
+        ).strip()
+        s2_entry = s2_map.get(cid, {})
+        paper_id = p.get("openalex_id") or cid
+        enrich_tasks.append(_enrich_paper_text(paper_id, s2_entry, fallback))
+
+    full_texts = await asyncio.gather(*enrich_tasks, return_exceptions=True)
+
+    sources: List[Dict] = []
+    scores:  List[float] = []
+    for p, ft in zip(papers, full_texts):
+        if isinstance(ft, Exception):
+            ft = ""
+        full_text = str(ft).strip()
+        title = (p.get("title") or p.get("paper_title") or "Unknown").strip()
+        year  = p.get("year") or p.get("publication_year")
+        src   = p.get("source") or p.get("venue") or p.get("journal") or ""
+        doi   = p.get("doi") or ""
+
+        if not full_text and title and title != "Unknown":
+            parts = [f'"{title}"']
+            if year: parts.append(f"({year})")
+            if src:  parts.append(f"in {src}")
+            full_text = " ".join(parts)
+
+        sources.append({
+            "n":         p.get("rank", len(sources) + 1),
+            "title":     title,
+            "year":      year,
+            "doi":       doi,
+            "source":    src,
+            "snippet":   full_text[:500],    # short preview for UI
+            "full_text": full_text,           # full text for LLM (up to 15 000 chars)
+        })
+        scores.append(float(p.get("score", 768)))
+
+    top_dist  = min(scores) if scores else 768
+    relevance = round(max(0.0, 1.0 - top_dist / 768), 3)
+    return sources, relevance
 
 
 # ── View / claim synthesis (one sentence per agent) ───────────────────────────
 def _synthesize_view_reason(query: str, snippets: List[str], stance: str) -> str:
     import re as _re
     from ollama_cloud_client import get_cloud_client
-    snip_text = " | ".join(s[:180] for s in snippets[:3] if s.strip())
+    # Use up to 4 000 chars per paper so agents reason from full sections,
+    # not just the opening sentence of an abstract.
+    paper_blocks = []
+    for i, s in enumerate(snippets[:3], 1):
+        s = s.strip()
+        if s:
+            paper_blocks.append(f"[Paper {i}]\n{s[:4000]}")
+    snip_text = "\n\n".join(paper_blocks)
     if not snip_text:
         return f"No papers directly address the {stance} position on this topic."
 
@@ -177,8 +330,8 @@ def _synthesize_view_reason(query: str, snippets: List[str], stance: str) -> str
         if stance == "dominant" else
         "In ONE concise sentence, explain what alternative, contrasting, or contradictory perspective these papers raise."
     )
-    system_msg = "You are a scientific analyst. Be concise. Do NOT copy paper titles. Respond based ONLY on provided papers."
-    user_msg   = f"Topic: {query}\nPapers: {snip_text}\n\n{instr}"
+    system_msg = "You are a scientific analyst. Be concise. Do NOT copy paper titles. Respond based ONLY on the provided full paper texts."
+    user_msg   = f"Topic: {query}\n\nFull paper texts:\n{snip_text}\n\n{instr}"
 
     try:
         client = get_cloud_client()
@@ -279,21 +432,22 @@ def _chat_synthesize(sources_block: str, message: str,
 
 # ── Single-agent async runner ─────────────────────────────────────────────────
 async def _run_agent(agent_key: str, cfg: Dict, query: str) -> Dict:
-    """FAISS search + one-sentence synthesis for one agent. Runs concurrently."""
+    """FAISS search + full-text enrichment + one-sentence synthesis for one agent."""
     import time
     t0 = time.perf_counter()
 
     agent_query = cfg["query_fn"](query)
     loop = asyncio.get_event_loop()
 
-    sources, relevance = await loop.run_in_executor(
-        None, _fetch_faiss_sources, agent_query, cfg["k"]
-    )
+    # Full-text enriched search: FAISS → S2 batch → arXiv/PDF fetch (all async)
+    sources, relevance = await _fetch_faiss_sources_enriched(agent_query, cfg["k"])
 
-    snips = [s["snippet"] for s in sources if s.get("snippet")][:3]
-    if snips:
+    # Use full_text for synthesis so the agent reasons from the whole paper,
+    # not just the first 180 chars of an abstract.
+    full_texts = [s.get("full_text") or s.get("snippet", "") for s in sources if s.get("full_text") or s.get("snippet")][:3]
+    if full_texts:
         synthesis = await loop.run_in_executor(
-            None, _synthesize_view_reason, query, snips, cfg["view_stance"]
+            None, _synthesize_view_reason, query, full_texts, cfg["view_stance"]
         )
     else:
         synthesis = ""
@@ -547,9 +701,9 @@ def _build_fast_answer(message: str, faiss_sources: List[Dict], faiss_relevance:
     keyword_hit = not query_terms or any(t in all_text for t in query_terms)
     has_relevant = faiss_relevance >= 0.70 and keyword_hit and any(s.get("snippet") for s in sources[:8])
 
-    src_block = ("\n".join(
-        f"[{s['n']}] {s['snippet'][:250]}"
-        for s in sources[:6] if s.get("snippet")
+    src_block = ("\n\n".join(
+        f"[{s['n']}] {(s.get('full_text') or s.get('snippet', ''))[:2500]}"
+        for s in sources[:6] if s.get("full_text") or s.get("snippet")
     ) if has_relevant else "")
 
     history = session.get("history", [])
@@ -707,10 +861,12 @@ async def chat(request: ChatRequest):
         if deliberation.get("verdict"):
             agent_views_text += f"\nJudge verdict: {deliberation['verdict']}\n"
 
-        # Main answer synthesis incorporating agent views
-        src_block = "\n".join(
-            f"[{s['n']}] {s['snippet'][:200]}"
-            for s in all_faiss_sources[:6] if s.get("snippet")
+        # Main answer synthesis — use full_text (up to 2 500 chars per paper)
+        # so the synthesis LLM can cite specific findings, methods, and numbers.
+        src_block = "\n\n".join(
+            f"[{s['n']}] {(s.get('full_text') or s.get('snippet', ''))[:2500]}"
+            for s in all_faiss_sources[:6]
+            if s.get("full_text") or s.get("snippet")
         ) if best_relevance >= 0.65 else ""
 
         chat_hist = []

@@ -17,7 +17,7 @@ Input:  ./raw_corpus/batch_*.parquet
 Output: ./embeddings/
           binary.npy        — packed bits (N × 96 uint8)
           ids.npy           — OpenAlex IDs (str, N)
-          metadata.parquet  — id, title, year, doi, cited_by_count, source
+          metadata.parquet  — id, title, year, doi, cited_by_count, source, text_excerpt
 """
 
 import os
@@ -155,13 +155,17 @@ def embed_texts(texts: list[str]) -> np.ndarray:
 # ── Metadata writer ───────────────────────────────────────────────────────────
 class MetaWriter:
     """Streaming parquet writer — avoids holding all metadata in RAM."""
+    # text_excerpt = title + " [SEP] " + abstract, capped at 4 000 chars.
+    # This is exactly what SPECTER was fed, so agents can read the same
+    # text the embedding model used — no information is lost.
     SCHEMA = pa.schema([
-        pa.field("id",            pa.string()),
-        pa.field("title",         pa.string()),
-        pa.field("year",          pa.int16()),
-        pa.field("doi",           pa.string()),
+        pa.field("id",             pa.string()),
+        pa.field("title",          pa.string()),
+        pa.field("year",           pa.int16()),
+        pa.field("doi",            pa.string()),
         pa.field("cited_by_count", pa.int32()),
-        pa.field("source",        pa.string()),
+        pa.field("source",         pa.string()),
+        pa.field("text_excerpt",   pa.string()),   # ← full text agents reason over
     ])
 
     def __init__(self, path: Path):
@@ -169,12 +173,13 @@ class MetaWriter:
 
     def write(self, rows: list[dict]):
         table = pa.table({
-            "id":            pa.array([r["id"]            for r in rows], type=pa.string()),
-            "title":         pa.array([r["title"]         for r in rows], type=pa.string()),
-            "year":          pa.array([r["year"]          for r in rows], type=pa.int16()),
-            "doi":           pa.array([r["doi"]           for r in rows], type=pa.string()),
+            "id":             pa.array([r["id"]             for r in rows], type=pa.string()),
+            "title":          pa.array([r["title"]          for r in rows], type=pa.string()),
+            "year":           pa.array([r["year"]           for r in rows], type=pa.int16()),
+            "doi":            pa.array([r["doi"]            for r in rows], type=pa.string()),
             "cited_by_count": pa.array([r["cited_by_count"] for r in rows], type=pa.int32()),
-            "source":        pa.array([r["source"]        for r in rows], type=pa.string()),
+            "source":         pa.array([r["source"]         for r in rows], type=pa.string()),
+            "text_excerpt":   pa.array([r["text_excerpt"]   for r in rows], type=pa.string()),
         })
         self._writer.write_table(table)
 
@@ -235,15 +240,18 @@ def main():
         all_binary.append(binary)
         total_papers += len(ids)
 
-        # ── Write metadata (streaming) ──────────────────────────────────────
+        # ── Write metadata (streaming, now includes text_excerpt) ───────────
         meta_rows = [
             {
-                "id":            ids[i],
-                "title":         titles[i],
-                "year":          df["year"][i],
-                "doi":           df["doi"][i],
+                "id":             ids[i],
+                "title":          titles[i],
+                "year":           df["year"][i],
+                "doi":            df["doi"][i],
                 "cited_by_count": df["cited_by_count"][i],
-                "source":        df["source"][i],
+                "source":         df["source"][i],
+                # Store the exact text SPECTER was fed (title [SEP] abstract).
+                # Cap at 4 000 chars — covers full abstract for virtually all papers.
+                "text_excerpt":   texts[i][:4000],
             }
             for i in range(len(ids))
         ]

@@ -11,9 +11,13 @@ Install: pip install hf_transfer   (already in requirements.txt)
 
 Uploads to: amethystani/evirag-index
 Files:
-  evirag.index       — FAISS IndexBinaryIVF (~4 GB)
+  evirag.index       — FAISS IndexBinaryIVF (~4 GB for 40M)
   ids.npy            — paper ID strings
-  metadata.parquet   — title, year, doi, cited_by_count, source
+  metadata.parquet   — id, title, year, doi, cited_by_count, source, text_excerpt
+
+NOTE: metadata.parquet now includes text_excerpt (title [SEP] abstract, ≤4000 chars).
+      This is what agents read — every paper has full abstract context.
+      For 40M papers this file is ~8-12 GB compressed (zstd).
 """
 
 import os
