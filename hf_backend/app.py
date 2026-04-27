@@ -315,6 +315,135 @@ async def _run_agent(agent_key: str, cfg: Dict, query: str) -> Dict:
     }
 
 
+# ── Deliberation helpers ───────────────────────────────────────────────────────
+def _delib_llm(prompt: str, system: str, max_tokens: int = 140) -> str:
+    """Blocking single-call LLM for deliberation exchange. Short, punchy output."""
+    from ollama_cloud_client import get_cloud_client
+    try:
+        client = get_cloud_client()
+        text = client.generate(prompt=prompt, system=system,
+                               temperature=0.35, max_tokens=max_tokens)
+        if not text:
+            return ""
+        text = text.strip()
+        # Keep only the first sentence
+        for end in ['. ', '! ', '? ']:
+            idx = text.find(end)
+            if 40 < idx < len(text) - 1:
+                return text[:idx + 1].strip()
+        return text[:260].strip()
+    except Exception as e:
+        print(f"[deliberation] LLM error: {e}")
+        return ""
+
+
+async def _run_deliberation(query: str, round1: List[Dict]) -> Dict:
+    """
+    Multi-round deliberation engine.
+
+    After Round 1 (parallel independent retrieval + stance formation):
+      • Judge identifies the exact factual conflict between Builder and Skeptic.
+      • Builder and Skeptic each write a rebuttal (seeing the other's Round 1 view).
+      • Judge renders a final verdict weighing the full exchange.
+
+    All four calls run with maximum parallelism:
+      - Judge conflict + Builder rebuttal + Skeptic rebuttal: 3 parallel
+      - Judge verdict: 1 sequential (needs the rebuttals first)
+    """
+    import time
+    t0 = time.perf_counter()
+
+    builder  = next((r for r in round1 if r["agent_name"] == "builder"),   None)
+    skeptic  = next((r for r in round1 if r["agent_name"] == "skeptic"),   None)
+    archivist= next((r for r in round1 if r["agent_name"] == "archivist"), None)
+
+    b_view = (builder   or {}).get("synthesis", "")
+    s_view = (skeptic   or {}).get("synthesis", "")
+    a_view = (archivist or {}).get("synthesis", "")
+
+    if not b_view or not s_view:
+        return {"conflict": "", "round2": [], "verdict": "", "duration_ms": 0}
+
+    loop = asyncio.get_event_loop()
+
+    # ── 3 parallel calls ───────────────────────────────────────────────────────
+    conflict_prompt = (
+        f"Topic: {query}\n"
+        f"Builder argues: {b_view}\n"
+        f"Skeptic argues: {s_view}\n\n"
+        "In ONE sentence: What is the single most important factual point where "
+        "Builder and Skeptic directly contradict each other?"
+    )
+    builder_r_prompt = (
+        f"Topic: {query}\n"
+        f"Your position: {b_view}\n"
+        f"Skeptic challenges you: {s_view}\n\n"
+        "In ONE sentence, rebut the Skeptic: cite specific evidence to defend "
+        "your position or concede a narrow limitation."
+    )
+    skeptic_r_prompt = (
+        f"Topic: {query}\n"
+        f"Your counter-position: {s_view}\n"
+        f"Builder argues against you: {b_view}\n\n"
+        "In ONE sentence, press your counter-argument: point to a gap in "
+        "Builder's evidence or concede where their support is strongest."
+    )
+
+    sys_judge   = ("You are a scientific arbiter. Be precise, evidence-based, "
+                   "and identify genuine factual disagreements — not just terminology.")
+    sys_builder = ("You are the Builder agent in a scientific deliberation. "
+                   "Defend the dominant scientific view with specific evidence. Be direct.")
+    sys_skeptic = ("You are the Skeptic agent in a scientific deliberation. "
+                   "Challenge the dominant view with methodological critique or counter-evidence. Be direct.")
+
+    conflict, builder_reb, skeptic_reb = await asyncio.gather(
+        loop.run_in_executor(None, _delib_llm, conflict_prompt,  sys_judge,   100),
+        loop.run_in_executor(None, _delib_llm, builder_r_prompt, sys_builder, 140),
+        loop.run_in_executor(None, _delib_llm, skeptic_r_prompt, sys_skeptic, 140),
+    )
+
+    # ── Judge verdict (needs rebuttals first) ──────────────────────────────────
+    verdict_prompt = (
+        f"Topic: {query}\n\n"
+        f"Round 1 — Builder: {b_view}\n"
+        f"Round 1 — Skeptic: {s_view}\n"
+        f"Round 1 — Archivist: {a_view}\n\n"
+        f"Round 2 — Builder rebuttal: {builder_reb}\n"
+        f"Round 2 — Skeptic rebuttal: {skeptic_reb}\n\n"
+        "After this full exchange, in 2 sentences: (1) What does the weight of "
+        "evidence support? (2) What genuine uncertainty or disagreement remains?"
+    )
+    sys_verdict = ("You are a calibrated scientific judge. Your verdict must "
+                   "acknowledge both what is settled and what remains contested.")
+    verdict = await loop.run_in_executor(None, _delib_llm, verdict_prompt, sys_verdict, 200)
+
+    duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+    return {
+        "conflict": conflict,
+        "round2": [
+            {
+                "agent":        "builder",
+                "glyph":        "B",
+                "name":         "Builder",
+                "stance":       "support",
+                "rebuttal":     builder_reb,
+                "responding_to": "Skeptic",
+            },
+            {
+                "agent":        "skeptic",
+                "glyph":        "S",
+                "name":         "Skeptic",
+                "stance":       "contra",
+                "rebuttal":     skeptic_reb,
+                "responding_to": "Builder",
+            },
+        ],
+        "verdict":     verdict,
+        "duration_ms": duration_ms,
+    }
+
+
 # ── Claim graph builder ────────────────────────────────────────────────────────
 def _build_claim_graph(agent_results: List[Dict], turn: int):
     """
@@ -475,8 +604,10 @@ async def query_trace_plan(request: TracePlanRequest):
             {"step": "builder",     "label": "Builder: retrieving supporting evidence","detail": "Searching for papers that confirm the dominant scientific view."},
             {"step": "skeptic",     "label": "Skeptic: adversarial evidence search",  "detail": "Adversarially searching for contradictions, null results, and counter-evidence."},
             {"step": "archivist",   "label": "Archivist: citation grounding",         "detail": "Grounding claims in source metadata and maximising citation diversity."},
-            {"step": "judge",       "label": "Judge: confidence calibration",         "detail": "Assessing methodological quality and calibrating uncertainty."},
-            {"step": "synthesis",   "label": "Cross-agent synthesis",                 "detail": "Merging all agent views into a unified disagreement-aware answer."},
+            {"step": "judge_r1",    "label": "Judge: identifying conflict",           "detail": "Pinpointing the exact factual disagreement between Builder and Skeptic's Round 1 stances."},
+            {"step": "rebuttals",   "label": "Round 2: agent rebuttals",              "detail": "Builder and Skeptic each respond to the other's argument — the actual debate happens here."},
+            {"step": "verdict",     "label": "Judge: rendering verdict",              "detail": "Judge weighs the full exchange and produces a calibrated 2-sentence verdict."},
+            {"step": "synthesis",   "label": "Final synthesis",                       "detail": "Main answer incorporates all rounds of deliberation into a unified response."},
             {"step": "graph",       "label": "Building claim disagreement graph",     "detail": "Constructing nodes per claim and stance-classified edges between them."},
         ]
         mode_label  = "EVIRAG · 4-agent deliberative"
@@ -524,12 +655,16 @@ async def chat(request: ChatRequest):
 
     # ── Branch: 4-agent deliberative vs fast path ──────────────────────────────
     if request.agents:
-        # ── Run all 4 agents in parallel ──────────────────────────────────────
+        # ── Round 1: Run all 4 agents in parallel ─────────────────────────────
         agent_tasks = [
             _run_agent(key, cfg, request.message)
             for key, cfg in AGENT_CONFIGS.items()
         ]
         agent_results: List[Dict] = list(await asyncio.gather(*agent_tasks))
+
+        # ── Deliberation: Judge identifies conflict, agents exchange rebuttals ─
+        # Runs only if both Builder and Skeptic produced a real view.
+        deliberation = await _run_deliberation(request.message, agent_results)
 
         # Build claim graph from agent outputs
         graph_nodes, graph_edges, turn_claims = _build_claim_graph(agent_results, turn)
@@ -546,11 +681,18 @@ async def chat(request: ChatRequest):
         # Best relevance across agents
         best_relevance = max((ar["relevance"] for ar in agent_results), default=0.5)
 
-        # Build view synthesis block for the main answer
+        # Build view synthesis block for the main answer — include deliberation
         agent_views_text = ""
         for ar in agent_results:
             if ar["synthesis"]:
                 agent_views_text += f"- {ar['name']} ({ar['stance']}): {ar['synthesis']}\n"
+        if deliberation.get("conflict"):
+            agent_views_text += f"\nKey conflict identified: {deliberation['conflict']}\n"
+        for r2 in deliberation.get("round2", []):
+            if r2.get("rebuttal"):
+                agent_views_text += f"- {r2['name']} (rebuttal): {r2['rebuttal']}\n"
+        if deliberation.get("verdict"):
+            agent_views_text += f"\nJudge verdict: {deliberation['verdict']}\n"
 
         # Main answer synthesis incorporating agent views
         src_block = "\n".join(
@@ -590,10 +732,18 @@ async def chat(request: ChatRequest):
         builder_cids  = [c["id"] for c in turn_claims if c["source_doc_id"] == "builder"]
         skeptic_cids  = [c["id"] for c in turn_claims if c["source_doc_id"] == "skeptic"]
 
+        # Build fallback summaries from paper titles when synthesis is empty
+        def _title_summary(ar: Dict, stance: str) -> str:
+            titles = [s.get("title","") for s in ar.get("sources",[])[:3] if s.get("title")]
+            if titles:
+                t = "; ".join(f'"{t[:50]}"' for t in titles[:2])
+                return f"Papers retrieved: {t}."
+            return f"The {ar.get('name','Agent')} retrieved {ar.get('num_chunks',0)} papers from the peS2o corpus in a {stance} search."
+
         answer_obj: Dict[str, Any] = {}
         if builder_ar and (builder_ar["synthesis"] or builder_ar["sources"]):
             answer_obj["dominant_view"] = {
-                "summary":              builder_ar["synthesis"] or "The Builder agent found supporting evidence from the peS2o corpus.",
+                "summary":              builder_ar["synthesis"] or _title_summary(builder_ar, "supporting"),
                 "source_count":         builder_ar["num_chunks"],
                 "confidence":           builder_ar["confidence"],
                 "overall_confidence":   "medium",
@@ -605,7 +755,7 @@ async def chat(request: ChatRequest):
             }
         if skeptic_ar and (skeptic_ar["synthesis"] or skeptic_ar["sources"]):
             answer_obj["alternative_views"] = [{
-                "summary":              skeptic_ar["synthesis"] or "The Skeptic agent found contradictory evidence.",
+                "summary":              skeptic_ar["synthesis"] or _title_summary(skeptic_ar, "adversarial"),
                 "source_count":         skeptic_ar["num_chunks"],
                 "confidence":           skeptic_ar["confidence"],
                 "supporting_claim_ids": skeptic_cids,
@@ -807,6 +957,7 @@ async def chat(request: ChatRequest):
             "agents_used":   len(agent_results),
         },
         "agent_details":       agent_details,
+        "deliberation":        deliberation if request.agents else {},
         "graph":               {"nodes": graph_nodes, "edges": graph_edges},
         "epistemic_divergence": epistemic,
         "intent":              intent,

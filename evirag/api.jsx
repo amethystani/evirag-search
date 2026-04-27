@@ -506,6 +506,22 @@ function transformResult(data, query) {
 
   const chatData = data.chat || null;
 
+  // ── Deliberation (multi-round agent debate) ───────────────────────────────────
+  const rawDelib = data.deliberation || {};
+  const deliberation = {
+    conflict: rawDelib.conflict || "",
+    round2:   (rawDelib.round2  || []).map(r => ({
+      agent:        r.agent        || "",
+      glyph:        r.glyph        || "",
+      name:         r.name         || "",
+      stance:       r.stance       || "neutral",
+      rebuttal:     r.rebuttal     || "",
+      respondingTo: r.responding_to || "",
+    })),
+    verdict:     rawDelib.verdict     || "",
+    durationMs:  rawDelib.duration_ms || 0,
+  };
+
   metricsObj.sources = sources.length;
   metricsObj.figuresAligned = visual.enabled ? visual.items.length : 0;
 
@@ -517,6 +533,7 @@ function transformResult(data, query) {
     views,
     agents,
     agentSummary,
+    deliberation,
     sources,
     graph:     { nodes: layoutNodes, edges },
     calibration,
