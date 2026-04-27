@@ -153,6 +153,7 @@ class Paper(BaseModel):
     cited_by_count: int | None
     source:        str | None
     score:         float   # Hamming distance (lower = more similar)
+    text_excerpt:  str | None = None
 
 
 class SearchResponse(BaseModel):
@@ -180,11 +181,18 @@ def _fetch_metadata(openalex_ids: list[str]) -> dict[str, dict]:
         return {}
     ids_sql = ", ".join(f"'{i}'" for i in openalex_ids)
     rows = _state["db"].execute(
-        f"SELECT id, title, year, doi, cited_by_count, source "
+        f"SELECT id, title, year, doi, cited_by_count, source, text_excerpt "
         f"FROM papers WHERE id IN ({ids_sql})"
     ).fetchall()
     return {
-        r[0]: {"title": r[1], "year": r[2], "doi": r[3], "cited_by_count": r[4], "source": r[5]}
+        r[0]: {
+            "title": r[1],
+            "year": r[2],
+            "doi": r[3],
+            "cited_by_count": r[4],
+            "source": r[5],
+            "text_excerpt": r[6] or "",
+        }
         for r in rows
     }
 
@@ -251,6 +259,7 @@ def search(req: SearchRequest):
             cited_by_count=meta.get("cited_by_count"),
             source=meta.get("source"),
             score=float(dist),
+            text_excerpt=meta.get("text_excerpt") or None,
         ))
 
     latency_ms = (time.perf_counter() - t0) * 1000
