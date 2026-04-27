@@ -117,7 +117,7 @@ def _fetch_faiss_sources(query: str, k: int = 8):
         sources: List[Dict] = []
         scores:  List[float] = []
         for p in papers:
-            # Try all common field names the FAISS search space may use
+            # Try all common field names the FAISS search space may use for full text
             excerpt = (
                 p.get("text_excerpt") or
                 p.get("text") or
@@ -129,18 +129,31 @@ def _fetch_faiss_sources(query: str, k: int = 8):
                 ""
             ).strip()
             if not excerpt:
-                # Last resort: join any string values that look like text
+                # Last resort: scan all values for a long text string
                 for v in p.values():
                     if isinstance(v, str) and len(v) > 80 and not v.startswith("http"):
                         excerpt = v.strip()
                         break
+            title = (p.get("title") or p.get("paper_title") or "Unknown").strip()
+            year  = p.get("year") or p.get("publication_year")
+            src   = p.get("source") or p.get("venue") or p.get("journal") or ""
+            # If the search space only returns metadata (no full text), synthesise
+            # a descriptive snippet from the paper's bibliographic info so that
+            # the LLM synthesis call still has meaningful context to work from.
+            if not excerpt and title and title != "Unknown":
+                parts = [f'"{title}"']
+                if year:
+                    parts.append(f"({year})")
+                if src:
+                    parts.append(f"in {src}")
+                excerpt = " ".join(parts)
             sources.append({
                 "n":       p.get("rank", len(sources) + 1),
-                "title":   p.get("title") or p.get("paper_title") or "Unknown",
-                "year":    p.get("year") or p.get("publication_year"),
+                "title":   title,
+                "year":    year,
                 "snippet": excerpt[:300],
                 "doi":     p.get("doi") or "",
-                "source":  p.get("source") or p.get("venue") or p.get("journal") or "",
+                "source":  src,
             })
             scores.append(float(p.get("score", 768)))
         top_dist = min(scores) if scores else 768
