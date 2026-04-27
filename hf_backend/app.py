@@ -212,11 +212,22 @@ def _chat_synthesize(sources_block: str, message: str,
 
     preamble = ""
     if has_views:
+        # Pass agent views as anonymous "research perspectives" — NOT as agent outputs.
+        # The LLM must NOT mention agents, Builder, Skeptic, Judge, or deliberation
+        # in its final answer; those belong only in the separate deliberation panel.
         preamble = (
-            f"Four deliberative agents analysed this topic and found these perspectives:\n{agent_views}\n\n"
-            "Synthesise these views into a comprehensive answer. "
-            "Explicitly discuss where agents agree and disagree. "
+            f"Background research perspectives on this topic:\n{agent_views}\n\n"
+            "Use these perspectives as evidence to ground your answer. "
+            "Do NOT mention 'agents', 'Builder', 'Skeptic', 'Judge', 'Archivist', "
+            "'deliberation', 'rounds', or any pipeline terminology in your answer. "
+            "Write as a knowledgeable scientific expert giving a clear, balanced response."
         )
+
+    agent_note = (
+        " CRITICAL: Never mention 'agents', 'Builder agent', 'Skeptic', 'Judge', "
+        "'deliberation', 'rounds', or any internal pipeline terminology in your answer. "
+        "Write clean, readable prose as if you are an expert directly answering the question."
+    )
 
     if has_ctx:
         system_msg = (
@@ -228,6 +239,7 @@ def _chat_synthesize(sources_block: str, message: str,
             "If retrieved passages are not relevant, IGNORE them and answer from scientific knowledge. "
             "Do NOT copy paper titles verbatim. "
             "End with a new line: '**Evolving Claim:**' followed by a one-sentence synthesis of the key finding."
+            + agent_note
         )
     else:
         system_msg = (
@@ -237,6 +249,7 @@ def _chat_synthesize(sources_block: str, message: str,
             "Cover mechanisms, consensus, evidence, and nuances. Never give a short answer. "
             "Do NOT use [N] citation markers or fabricate references. "
             "End with a new line: '**Evolving Claim:**' followed by a one-sentence synthesis of the key finding."
+            + agent_note
         )
 
     messages = [{"role": "system", "content": system_msg}]
