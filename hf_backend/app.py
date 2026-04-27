@@ -415,6 +415,105 @@ async def chat(request: ChatRequest):
     return _sanitize(result)
 
 
+@app.get("/api/ui/bootstrap")
+async def ui_bootstrap():
+    """Return UI bootstrap data for Corpus / Graph / Agents / Calibration pages."""
+    import requests as _req
+
+    # Try to pull paper count from the FAISS search space /status endpoint
+    total_docs = 0
+    try:
+        resp = _req.get(f"{SEARCH_URL}/status", timeout=5)
+        if resp.ok:
+            d = resp.json()
+            total_docs = (
+                d.get("total_papers")
+                or d.get("num_papers")
+                or d.get("indexed_papers")
+                or d.get("n_vectors")
+                or 0
+            )
+    except Exception:
+        pass
+
+    chunks_est = total_docs * 8 if total_docs else 0
+
+    return {
+        "stats": {
+            "total_documents": total_docs,
+            "total_claims": 0,
+            "total_figures": 0,
+            "source": "hf_backend",
+            "index_type": "FAISS · peS2o open-access corpus",
+        },
+        "models": {
+            "retrieval": "FAISS · sentence-transformers",
+            "verifier": "EVIRAG claim graph",
+        },
+        "topics": {
+            "tabs": [
+                {
+                    "id": "disagreement",
+                    "label": "Disagreement",
+                    "items": [
+                        {"q": "Does amyloid beta cause Alzheimer's disease?",              "meta": "neuroscience · contested mechanism"},
+                        {"q": "Are saturated fats causally linked to cardiovascular mortality?", "meta": "medicine · nutrition evidence"},
+                        {"q": "Do carbon offsets reduce net emissions at scale?",          "meta": "climate · policy evidence"},
+                    ],
+                },
+                {
+                    "id": "claims",
+                    "label": "Claims",
+                    "items": [
+                        {"q": "Verify the claim that CRISPR off-target effects are clinically negligible", "meta": "biology · safety claim"},
+                        {"q": "Check whether transformer scaling laws still hold beyond frontier model sizes", "meta": "AI · empirical claim"},
+                        {"q": "Map evidence for microplastics affecting human endocrine function", "meta": "medicine · exposure claim"},
+                    ],
+                },
+            ],
+        },
+        "documents": [
+            {
+                "id": "pes2o-corpus",
+                "title": (
+                    f"peS2o open-access scientific corpus — {total_docs:,} papers indexed via FAISS"
+                    if total_docs else
+                    "peS2o open-access scientific corpus (FAISS index)"
+                ),
+                "year": 2024,
+                "pages": 0,
+                "claims": 0,
+                "chunks": chunks_est,
+                "figures": 0,
+                "sections": [{"name": "corpus", "chunks": chunks_est}],
+                "top_claims": [],
+            }
+        ],
+        "graph": {
+            "nodes": 0,
+            "edges": 0,
+            "clusters": [
+                {"doc_id": "alzheimers", "title": "Alzheimer's amyloid debate",  "claims": 0, "edges": 0, "density": 0, "class": "query-ready", "query": "Does amyloid beta cause Alzheimer's disease?"},
+                {"doc_id": "offsets",    "title": "Carbon offset effectiveness", "claims": 0, "edges": 0, "density": 0, "class": "query-ready", "query": "Do carbon offsets reduce net emissions at scale?"},
+                {"doc_id": "darkmatter","title": "Dark matter alternatives",     "claims": 0, "edges": 0, "density": 0, "class": "query-ready", "query": "Compare evidence for dark matter versus modified gravity"},
+            ],
+        },
+        "agents": [
+            {"key": "skeptic",  "name": "Skeptic",  "glyph": "S", "role": "Searches for contradictory evidence and counter-claims",    "model": "gpt-oss:120b (Ollama cloud)", "search_strategy": "counter-evidence", "retrieval_k": 8},
+            {"key": "builder",  "name": "Builder",  "glyph": "B", "role": "Builds the strongest case for the dominant view",           "model": "gpt-oss:120b (Ollama cloud)", "search_strategy": "support",          "retrieval_k": 8},
+            {"key": "archivist","name": "Archivist","glyph": "A", "role": "Grounds claims in peS2o source metadata and citations",     "model": "gpt-oss:120b (Ollama cloud)", "search_strategy": "citation-first",   "retrieval_k": 8},
+            {"key": "judge",    "name": "Judge",    "glyph": "J", "role": "Calibrates confidence and flags unverified assumptions",    "model": "gpt-oss:120b (Ollama cloud)", "search_strategy": "verification",     "retrieval_k": 8},
+        ],
+        "calibration": [
+            {"key": "claim_agreement",        "label": "Claim agreement",        "weight": 0.32},
+            {"key": "source_diversity",       "label": "Source diversity",       "weight": 0.22},
+            {"key": "contradiction_severity", "label": "Contradiction severity", "weight": 0.28},
+            {"key": "unverified_assumptions", "label": "Unverified assumptions", "weight": 0.10},
+            {"key": "visual_alignment",       "label": "Visual alignment",       "weight": 0.08},
+        ],
+    }
+
+
 @app.get("/api/sessions/{session_id}")
 async def get_session(session_id: str):
     session = _chat_sessions.get(session_id)
