@@ -762,15 +762,24 @@ async function fetchSearchStatus() {
 
 // ── Perplexity-style chat (multi-turn, claim accumulation) ─────────────────
 async function chatWithEvirag(message, sessionId = null, options = {}) {
+  // Build the message — prepend uploaded-document context if present
+  let enrichedMessage = message;
+  if (options.pdfContext && options.pdfContext.trim()) {
+    enrichedMessage =
+      `[Uploaded document context — use this as primary evidence for the answer]\n` +
+      `${options.pdfContext.trim().slice(0, 12000)}\n\n` +
+      `[User question]\n${message}`;
+  }
+
   const resp = await fetch(`${BACKEND_URL}/api/chat`, {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
     body:    JSON.stringify({
-      message,
+      message:    enrichedMessage,
       session_id: sessionId,
-      backend: options.backend || "local",
-      agents: !!options.agents,
-      vlm: !!options.vlm
+      backend:    options.backend || "local",
+      agents:     !!options.agents,
+      vlm:        true,           // always enabled
     }),
   });
   if (!resp.ok) {

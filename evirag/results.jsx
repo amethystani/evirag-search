@@ -76,10 +76,9 @@ const ViewBlock = ({ v, idx, onClaim }) => (
 );
 
 // ── Agent Deliberation Panel ───────────────────────────────────────────────────
-// Full multi-round debate UI:
-//   Round 1: 4 independent stances
-//   Deliberation: Judge conflict + Builder↔Skeptic rebuttals
-//   Verdict: Judge final ruling
+// Redesigned multi-round debate UI showing the complete deliberation pipeline:
+//   [R1] 4 independent retrievals → [Judge] conflict detection →
+//   [R2] Builder ↔ Skeptic rebuttals → [Verdict] calibrated ruling
 const STANCE_COLORS = {
   support: { border: "var(--support)", badge: "oklch(0.50 0.07 150)", text: "oklch(0.38 0.07 150)", bg: "oklch(0.97 0.02 150)" },
   contra:  { border: "var(--contra)",  badge: "oklch(0.50 0.13 30)",  text: "oklch(0.42 0.13 30)",  bg: "oklch(0.97 0.03 30)"  },
@@ -100,21 +99,62 @@ const AgentBadge = ({ glyph, stance, size = 26 }) => {
   );
 };
 
+// Pipeline stage indicator — shows the deliberation flow at a glance
+const DelibPipeline = ({ hasDebate, hasVerdict, hasConflict, section, onSection }) => {
+  const stages = [
+    { id: "r1",      label: "Round 1", sub: "Retrieval",  active: true,       dot: "B S A J" },
+    { id: "conflict",label: "Judge",   sub: "Conflict",   active: hasConflict, dot: "J"      },
+    { id: "debate",  label: "Round 2", sub: "Rebuttals",  active: hasDebate,   dot: "B↔S"   },
+    { id: "verdict", label: "Verdict", sub: "Ruling",     active: hasVerdict,  dot: "J"      },
+  ];
+  return (
+    <div style={{
+      display: "flex", alignItems: "stretch",
+      borderBottom: "1px solid var(--hair)", background: "var(--bg)",
+      overflowX: "auto",
+    }}>
+      {stages.map((st, i) => {
+        const isCurrent = section === st.id || (section === "debate" && st.id === "conflict");
+        return (
+          <React.Fragment key={st.id}>
+            {i > 0 && (
+              <div style={{ display: "flex", alignItems: "center", padding: "0 2px", color: "var(--hair-2)", fontSize: 14, flexShrink: 0 }}>›</div>
+            )}
+            <button
+              onClick={() => st.active && st.id !== "conflict" && onSection(st.id)}
+              style={{
+                flex: "1 0 auto", padding: "9px 10px 7px",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                borderBottom: isCurrent ? "2px solid var(--accent)" : "2px solid transparent",
+                opacity: st.active ? 1 : 0.35,
+                cursor: st.active && st.id !== "conflict" ? "pointer" : "default",
+                transition: "all 0.15s",
+                minWidth: 64,
+              }}
+            >
+              <span style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase",
+                color: isCurrent ? "var(--accent)" : st.active ? "var(--ink)" : "var(--muted-2)",
+              }}>{st.label}</span>
+              <span style={{ fontSize: 9, color: "var(--muted-2)", fontFamily: "JetBrains Mono, monospace" }}>{st.sub}</span>
+            </button>
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+};
+
 const AgentDeliberationPanel = ({ agents, deliberation, onOpenAgent }) => {
   const [section, setSection] = useState("r1"); // "r1" | "debate" | "verdict"
   if (!agents || agents.length === 0) return null;
 
   const totalPapers = agents.reduce((s, a) => s + (a.retrieved || 0), 0);
+  const totalSources= agents.reduce((s, a) => s + (a.num_chunks || 0), 0);
   const delib = deliberation || {};
   const hasDebate  = delib.round2  && delib.round2.length > 0 && delib.round2.some(r => r.rebuttal);
   const hasVerdict = !!(delib.verdict);
   const hasConflict= !!(delib.conflict);
-
-  const sections = [
-    { id: "r1",     label: "Round 1 · Positions",  show: true },
-    { id: "debate", label: "Round 2 · Exchange",   show: hasDebate },
-    { id: "verdict",label: "Judge Verdict",        show: hasVerdict },
-  ].filter(s => s.show);
 
   return (
     <div className="agent-delib fade-up" style={{ animationDelay: "0.08s" }}>
@@ -122,93 +162,140 @@ const AgentDeliberationPanel = ({ agents, deliberation, onOpenAgent }) => {
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="agent-delib-hd">
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ color: "var(--accent)", display: "flex" }}><Icon name="cpu" size={13}/></span>
+          <span style={{ color: "var(--accent)", display: "flex", alignItems: "center" }}>
+            <Icon name="cpu" size={13}/>
+          </span>
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--ink-2)" }}>
-            Multi-round deliberation
+            4-Agent Deliberation
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span className="delib-stat">{totalPapers} papers</span>
+          <span className="delib-stat">{totalSources || totalPapers} papers</span>
           {hasDebate  && <span className="delib-stat">2 rounds</span>}
-          {hasVerdict && <span className="delib-stat" style={{ color: "var(--accent)", borderColor: "var(--accent)" }}>verdict</span>}
+          {hasVerdict && <span className="delib-stat" style={{ color: "var(--accent)", borderColor: "var(--accent)" }}>verdict ✓</span>}
         </div>
       </div>
 
-      {/* ── Section tabs ─────────────────────────────────────────────────── */}
-      {sections.length > 1 && (
-        <div style={{ display: "flex", borderBottom: "1px solid var(--hair)", background: "var(--panel)" }}>
-          {sections.map(s => (
-            <button key={s.id}
-              onClick={() => setSection(s.id)}
-              style={{
-                flex: 1, padding: "7px 4px", fontSize: 10.5, fontWeight: 600,
-                letterSpacing: "0.04em", textTransform: "uppercase",
-                color: section === s.id ? "var(--ink)" : "var(--muted)",
-                borderBottom: section === s.id ? "2px solid var(--accent)" : "2px solid transparent",
-                transition: "all 0.12s",
-              }}>
-              {s.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* ── Pipeline timeline ─────────────────────────────────────────────── */}
+      <DelibPipeline
+        hasDebate={hasDebate}
+        hasVerdict={hasVerdict}
+        hasConflict={hasConflict}
+        section={section}
+        onSection={setSection}
+      />
 
-      {/* ── Round 1: initial stances ─────────────────────────────────────── */}
+      {/* ── Round 1: independent retrieval + stance formation ────────────── */}
       {section === "r1" && (
-        <div className="agent-delib-grid">
-          {agents.map((a, i) => {
-            const c = STANCE_COLORS[a.stance] || STANCE_COLORS.neutral;
-            const hasView = a.reasoning && a.reasoning !== "No synthesis returned.";
-            return (
-              <div key={a.key || i} className="agent-delib-card"
-                style={{ borderTop: `3px solid ${c.border}`, background: c.bg }}
-                onClick={() => onOpenAgent(a)}
-                title={`Click to inspect ${a.name} agent`}>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
-                  <AgentBadge glyph={a.glyph} stance={a.stance}/>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--ink)", lineHeight: 1.3 }}>{a.name}</div>
-                    <div style={{ fontSize: 10, color: c.text, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", marginTop: 1 }}>{a.stance}</div>
-                  </div>
-                </div>
-                {hasView ? (
-                  <div style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.55, marginBottom: 8, fontFamily: "Newsreader, serif", fontStyle: "italic", minHeight: 44 }}>
-                    "{a.reasoning}"
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 11, color: "var(--muted-2)", lineHeight: 1.5, marginBottom: 8, fontStyle: "italic", minHeight: 44 }}>
-                    {a.retrieved > 0 ? `${a.retrieved} papers retrieved.` : "No corpus match."}
-                  </div>
-                )}
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", fontFamily: "JetBrains Mono, monospace", fontSize: 10, color: "var(--muted-2)", borderTop: "1px solid var(--hair)", paddingTop: 6, marginTop: "auto" }}>
-                  <span><strong style={{ color: "var(--ink)" }}>{a.retrieved}</strong> papers</span>
-                  <span>conf <strong style={{ color: "var(--ink)" }}>{(a.confidence||0).toFixed(2)}</strong></span>
-                  {a.durationMs > 0 && <span>{a.durationMs}ms</span>}
-                </div>
-                {a.topSources && a.topSources.length > 0 && (
-                  <div style={{ marginTop: 5 }}>
-                    {a.topSources.slice(0,2).map((s,si) => (
-                      <div key={si} style={{ fontSize: 10, color: "var(--muted)", lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        · {s.title}{s.year ? ` (${s.year})` : ""}
+        <>
+          {/* Agent grid */}
+          <div className="agent-delib-grid">
+            {agents.map((a, i) => {
+              const c = STANCE_COLORS[a.stance] || STANCE_COLORS.neutral;
+              const hasView = a.reasoning && a.reasoning !== "No synthesis returned.";
+              const agentRole = {
+                builder:  "Builds the strongest supporting case from the literature",
+                skeptic:  "Searches for counter-evidence and contradictions",
+                archivist:"Grounds claims in citation metadata and source diversity",
+                judge:    "Calibrates confidence and detects factual conflicts",
+              }[a.agent_name || a.name?.toLowerCase()] || a.role || "";
+              return (
+                <div key={a.key || i} className="agent-delib-card"
+                  style={{ borderTop: `3px solid ${c.border}`, background: c.bg }}
+                  onClick={() => onOpenAgent(a)}
+                  title={`Click to inspect ${a.name} agent — ${agentRole}`}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+                    <AgentBadge glyph={a.glyph} stance={a.stance}/>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)", lineHeight: 1.3 }}>{a.name}</span>
+                        <span style={{ fontSize: 9, fontFamily: "JetBrains Mono, monospace", color: "var(--muted-2)", fontWeight: 500 }}>
+                          {(a.confidence||0).toFixed(2)} conf
+                        </span>
                       </div>
-                    ))}
+                      <div style={{ fontSize: 10, color: c.text, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", marginTop: 1 }}>{a.stance}</div>
+                    </div>
                   </div>
-                )}
+                  {/* Agent role description */}
+                  <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 7, lineHeight: 1.4, fontFamily: "JetBrains Mono, monospace" }}>
+                    {agentRole}
+                  </div>
+                  {/* Synthesis */}
+                  {hasView ? (
+                    <div style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.55, marginBottom: 8, fontFamily: "Newsreader, serif", fontStyle: "italic", minHeight: 44 }}>
+                      "{a.reasoning}"
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11, color: "var(--muted-2)", lineHeight: 1.5, marginBottom: 8, fontStyle: "italic", minHeight: 44 }}>
+                      {a.retrieved > 0 ? `${a.retrieved} papers retrieved, synthesizing…` : "No corpus match found."}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", fontFamily: "JetBrains Mono, monospace", fontSize: 10, color: "var(--muted-2)", borderTop: "1px solid var(--hair)", paddingTop: 6, marginTop: "auto" }}>
+                    <span><strong style={{ color: "var(--ink)" }}>{a.retrieved || a.num_chunks || 0}</strong> papers</span>
+                    {a.durationMs > 0 && <span>{(a.durationMs/1000).toFixed(1)}s</span>}
+                  </div>
+                  {a.topSources && a.topSources.length > 0 && (
+                    <div style={{ marginTop: 5 }}>
+                      {a.topSources.slice(0,2).map((s,si) => (
+                        <div key={si} style={{ fontSize: 10, color: "var(--muted)", lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          · {s.title}{s.year ? ` (${s.year})` : ""}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Round 1 → next step hint */}
+          {hasConflict && (
+            <div
+              style={{ margin: "0 14px 14px", padding: "9px 12px", borderRadius: 8, background: "oklch(0.97 0.025 50)", border: "1px solid oklch(0.87 0.04 50)", display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}
+              onClick={() => setSection("debate")}
+            >
+              <span style={{ display: "flex", alignItems: "center", flexShrink: 0, color: "var(--accent)", marginTop: 1 }}>
+                <Icon name="warn" size={14}/>
+              </span>
+              <div>
+                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 3 }}>
+                  Judge detected a conflict — Round 2 triggered
+                </div>
+                <div style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.45, fontFamily: "Newsreader, serif", fontStyle: "italic" }}>
+                  {delib.conflict}
+                </div>
               </div>
-            );
-          })}
-        </div>
+              <span style={{ display: "flex", alignItems: "center", flexShrink: 0, color: "var(--muted-2)" }}>
+                <Icon name="chevron-right" size={14}/>
+              </span>
+            </div>
+          )}
+        </>
       )}
 
-      {/* ── Round 2: agent exchange (debate) ─────────────────────────────── */}
+      {/* ── Round 2: Judge conflict + Builder↔Skeptic rebuttals ──────────── */}
       {section === "debate" && (
         <div style={{ padding: "14px 14px 10px" }}>
-          {/* Conflict identified by judge */}
+
+          {/* What the Judge found */}
           {hasConflict && (
-            <div style={{ padding: "10px 12px", background: "oklch(0.97 0.025 50)", border: "1px solid oklch(0.85 0.04 50)", borderRadius: 8, marginBottom: 14, display: "flex", gap: 10, alignItems: "flex-start" }}>
-              <span style={{ fontSize: 11, fontFamily: "JetBrains Mono, monospace", fontWeight: 700, color: "var(--accent)", letterSpacing: "0.06em", whiteSpace: "nowrap", marginTop: 1 }}>CONFLICT</span>
-              <div style={{ fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.5, fontFamily: "Newsreader, serif", fontStyle: "italic" }}>
-                {delib.conflict}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <AgentBadge glyph="J" stance="neutral" size={24}/>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--muted)" }}>
+                  Judge · conflict identified
+                </span>
+              </div>
+              <div style={{ padding: "10px 12px", background: "oklch(0.97 0.025 50)", border: "1px solid oklch(0.85 0.04 50)", borderRadius: 8, display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 11, fontFamily: "JetBrains Mono, monospace", fontWeight: 700, color: "var(--accent)", letterSpacing: "0.06em", whiteSpace: "nowrap", marginTop: 1 }}>
+                  CONFLICT
+                </span>
+                <div style={{ fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.5, fontFamily: "Newsreader, serif", fontStyle: "italic" }}>
+                  {delib.conflict}
+                </div>
+              </div>
+              <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>
+                The Judge sent this conflict back to Builder and Skeptic for a direct rebuttal exchange.
               </div>
             </div>
           )}
@@ -224,7 +311,9 @@ const AgentDeliberationPanel = ({ agents, deliberation, onOpenAgent }) => {
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                     <AgentBadge glyph={r.glyph} stance={r.stance} size={22}/>
                     <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink)" }}>{r.name}</span>
-                    <span style={{ fontSize: 10, color: "var(--muted-2)", fontFamily: "JetBrains Mono, monospace" }}>responding to {r.respondingTo}</span>
+                    <span style={{ fontSize: 10, color: "var(--muted-2)", fontFamily: "JetBrains Mono, monospace" }}>
+                      → responding to {r.respondingTo || r.responding_to}
+                    </span>
                   </div>
                   {r1View && (
                     <div style={{ fontSize: 11, color: "var(--muted)", fontStyle: "italic", marginBottom: 6, lineHeight: 1.4 }}>
@@ -238,25 +327,56 @@ const AgentDeliberationPanel = ({ agents, deliberation, onOpenAgent }) => {
               );
             })}
           </div>
+
+          {/* Hint to verdict */}
+          {hasVerdict && (
+            <div
+              style={{ marginTop: 12, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--hair)", background: "var(--panel)", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
+              onClick={() => setSection("verdict")}
+            >
+              <span style={{ fontSize: 11.5, color: "var(--muted)", fontWeight: 500 }}>Judge has issued a final verdict</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--accent)", fontSize: 11, fontWeight: 600 }}>
+                View ruling <Icon name="chevron-right" size={12}/>
+              </span>
+            </div>
+          )}
         </div>
       )}
 
       {/* ── Judge verdict ─────────────────────────────────────────────────── */}
       {section === "verdict" && (
         <div style={{ padding: "14px 14px 12px" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-            <AgentBadge glyph="J" stance="neutral" size={30}/>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 6 }}>Judge · after full exchange</div>
-              <div style={{ fontSize: 14, fontFamily: "Newsreader, serif", color: "var(--ink)", lineHeight: 1.65 }}>
+          {/* What went in */}
+          <div style={{ marginBottom: 14, padding: "8px 12px", borderRadius: 8, background: "var(--bg)", fontSize: 11, color: "var(--muted)", lineHeight: 1.5, fontFamily: "JetBrains Mono, monospace" }}>
+            Synthesized from: Builder (support) + Skeptic (contra) + Archivist (neutral) + R2 rebuttals
+          </div>
+          {/* Judge ruling */}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <AgentBadge glyph="J" stance="neutral" size={34}/>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--muted)" }}>
+                  Judge · calibrated ruling
+                </span>
+                {delib.durationMs > 0 && (
+                  <span style={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace", color: "var(--muted-2)" }}>
+                    {(delib.durationMs / 1000).toFixed(1)}s
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 14.5, fontFamily: "Newsreader, serif", color: "var(--ink)", lineHeight: 1.7, padding: "10px 14px", background: "var(--panel-2)", borderRadius: 8, borderLeft: "3px solid var(--accent)" }}>
                 {delib.verdict}
               </div>
             </div>
           </div>
-          {delib.durationMs > 0 && (
-            <div style={{ marginTop: 12, fontFamily: "JetBrains Mono, monospace", fontSize: 10, color: "var(--muted-2)" }}>
-              deliberation completed in {(delib.durationMs / 1000).toFixed(1)}s
-            </div>
+          {/* Back to round 2 */}
+          {hasDebate && (
+            <button
+              style={{ marginTop: 12, fontSize: 11, color: "var(--muted)", display: "flex", alignItems: "center", gap: 4 }}
+              onClick={() => setSection("debate")}
+            >
+              <Icon name="arrow-left" size={11}/> Back to Round 2 exchange
+            </button>
           )}
         </div>
       )}

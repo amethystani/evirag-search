@@ -28,36 +28,48 @@ SEARCH_URL = os.getenv("EVIRAG_SEARCH_URL", "http://localhost:7860")
 AGENT_CONFIGS: Dict[str, Dict] = {
     "builder": {
         "glyph": "B", "name": "Builder",
-        "role": "Builds the strongest supporting case for the dominant view",
+        "role": "Builds the strongest evidence-based case for the dominant scientific view",
         "stance": "support", "view_stance": "dominant",
-        "query_fn": lambda q: f"Evidence supporting the scientific consensus on: {q}",
+        "query_fn": lambda q: (
+            f"systematic review meta-analysis randomized controlled trial "
+            f"supporting consensus evidence mechanisms: {q}"
+        ),
         "k": 6, "confidence_threshold": 0.72,
         "search_strategy": "cosine-support", "temperature": 0.25,
         "model": "gpt-oss:120b (Ollama cloud)",
     },
     "skeptic": {
         "glyph": "S", "name": "Skeptic",
-        "role": "Adversarial retrieval · contradiction and counter-evidence seeking",
+        "role": "Seeks contradictions, replication failures, and alternative interpretations",
         "stance": "contra", "view_stance": "alternative",
-        "query_fn": lambda q: f"Evidence against or contradicting the claim that: {q}",
+        "query_fn": lambda q: (
+            f"contradictory evidence replication failure methodological critique "
+            f"alternative explanation null result against: {q}"
+        ),
         "k": 6, "confidence_threshold": 0.70,
         "search_strategy": "neg-augmented", "temperature": 0.30,
         "model": "gpt-oss:120b (Ollama cloud)",
     },
     "archivist": {
         "glyph": "A", "name": "Archivist",
-        "role": "Grounds claims in peS2o source metadata and citation diversity",
+        "role": "Establishes the breadth of literature, key authors, methodologies, and historical development",
         "stance": "neutral", "view_stance": "dominant",
-        "query_fn": lambda q: f"Key research findings and papers documenting: {q}",
+        "query_fn": lambda q: (
+            f"landmark study historical development key researchers methodology "
+            f"review literature seminal paper: {q}"
+        ),
         "k": 5, "confidence_threshold": 0.65,
         "search_strategy": "citation-first", "temperature": 0.20,
         "model": "gpt-oss:120b (Ollama cloud)",
     },
     "judge": {
         "glyph": "J", "name": "Judge",
-        "role": "Calibrates confidence and flags unverified assumptions",
+        "role": "Identifies where evidence is genuinely contested, calibrates confidence, and exposes assumptions",
         "stance": "neutral", "view_stance": "alternative",
-        "query_fn": lambda q: f"How settled or contested is the scientific evidence on: {q}",
+        "query_fn": lambda q: (
+            f"scientific controversy open question contested evidence "
+            f"unresolved debate conflicting studies uncertainty: {q}"
+        ),
         "k": 4, "confidence_threshold": 0.68,
         "search_strategy": "verification", "temperature": 0.15,
         "model": "gpt-oss:120b (Ollama cloud)",
@@ -325,17 +337,31 @@ def _synthesize_view_reason(query: str, snippets: List[str], stance: str) -> str
     if not snip_text:
         return f"No papers directly address the {stance} position on this topic."
 
-    instr = (
-        "In ONE concise sentence, explain what these papers suggest supports or confirms the main position."
-        if stance == "dominant" else
-        "In ONE concise sentence, explain what alternative, contrasting, or contradictory perspective these papers raise."
+    if stance == "dominant":
+        instr = (
+            "In 1-2 sentences: What specific finding or mechanism do these papers provide "
+            "as the strongest evidence supporting the mainstream position? "
+            "Name a concrete result, effect size, or biological mechanism if present. "
+            "Be precise — never generic."
+        )
+    else:
+        instr = (
+            "In 1-2 sentences: What specific counter-evidence, replication failure, "
+            "methodological limitation, or alternative explanation do these papers reveal? "
+            "Cite a concrete result or critique — never just say 'there is disagreement'."
+        )
+
+    system_msg = (
+        "You are a rigorous scientific analyst producing one key finding per agent turn. "
+        "RULES: Never copy paper titles verbatim. Never say 'these papers suggest' or use "
+        "hedged meta-commentary — state the finding directly. Respond ONLY from the provided texts. "
+        "If the texts are irrelevant, say 'No directly relevant evidence found.' in one sentence."
     )
-    system_msg = "You are a scientific analyst. Be concise. Do NOT copy paper titles. Respond based ONLY on the provided full paper texts."
-    user_msg   = f"Topic: {query}\n\nFull paper texts:\n{snip_text}\n\n{instr}"
+    user_msg   = f"Research question: {query}\n\nFull paper texts:\n{snip_text}\n\n{instr}"
 
     try:
         client = get_cloud_client()
-        text = client.generate(prompt=user_msg, system=system_msg, temperature=0.25, max_tokens=120)
+        text = client.generate(prompt=user_msg, system=system_msg, temperature=0.22, max_tokens=160)
         text = text.strip().split("**Evolving Claim")[0]
         text = _re.sub(r'[\x00-\x1f\x7f]+', ' ', text)
         text = _re.sub(r' {2,}', ' ', text).strip()
@@ -535,33 +561,49 @@ async def _run_deliberation(query: str, round1: List[Dict]) -> Dict:
 
     # ── 3 parallel calls ───────────────────────────────────────────────────────
     conflict_prompt = (
-        f"Topic: {query}\n"
-        f"Builder argues: {b_view}\n"
-        f"Skeptic argues: {s_view}\n\n"
-        "In ONE sentence: What is the single most important factual point where "
-        "Builder and Skeptic directly contradict each other?"
+        f"Research topic: {query}\n\n"
+        f"Builder's finding: {b_view}\n"
+        f"Skeptic's finding: {s_view}\n\n"
+        "In ONE precise sentence: Identify the single most specific factual claim "
+        "where Builder and Skeptic directly contradict each other. "
+        "Name the exact mechanism, measurement, or study design in dispute — "
+        "not a vague 'they disagree about X'. Be surgical."
     )
     builder_r_prompt = (
-        f"Topic: {query}\n"
-        f"Your position: {b_view}\n"
-        f"Skeptic challenges you: {s_view}\n\n"
-        "In ONE sentence, rebut the Skeptic: cite specific evidence to defend "
-        "your position or concede a narrow limitation."
+        f"Research topic: {query}\n\n"
+        f"Your Round 1 finding: {b_view}\n"
+        f"Skeptic challenges: {s_view}\n\n"
+        "In ONE sentence: Rebut the Skeptic's specific challenge. "
+        "Either cite a concrete piece of evidence that directly counters their critique, "
+        "or acknowledge a narrow limitation while defending the core finding. "
+        "No rhetorical hedging — give a factual, direct response."
     )
     skeptic_r_prompt = (
-        f"Topic: {query}\n"
-        f"Your counter-position: {s_view}\n"
-        f"Builder argues against you: {b_view}\n\n"
-        "In ONE sentence, press your counter-argument: point to a gap in "
-        "Builder's evidence or concede where their support is strongest."
+        f"Research topic: {query}\n\n"
+        f"Your Round 1 counter-finding: {s_view}\n"
+        f"Builder defends: {b_view}\n\n"
+        "In ONE sentence: Sharpen your critique of Builder's evidence. "
+        "Identify a specific methodological weakness, confound, or replication issue "
+        "in their position — or acknowledge where their evidence is genuinely strong "
+        "and redirect to a different vulnerability. Be specific and evidence-driven."
     )
 
-    sys_judge   = ("You are a scientific arbiter. Be precise, evidence-based, "
-                   "and identify genuine factual disagreements — not just terminology.")
-    sys_builder = ("You are the Builder agent in a scientific deliberation. "
-                   "Defend the dominant scientific view with specific evidence. Be direct.")
-    sys_skeptic = ("You are the Skeptic agent in a scientific deliberation. "
-                   "Challenge the dominant view with methodological critique or counter-evidence. Be direct.")
+    sys_judge   = (
+        "You are a calibrated scientific arbiter — precise, evidence-based, and fair. "
+        "Your job is to identify genuine factual disagreements, not rhetorical differences. "
+        "Focus on empirical claims, not opinions. Never be vague."
+    )
+    sys_builder = (
+        "You are the Builder agent in a structured scientific deliberation. "
+        "You defend the dominant scientific view using specific empirical evidence. "
+        "Be direct and cite concrete findings — never be vague or rhetorical."
+    )
+    sys_skeptic = (
+        "You are the Skeptic agent in a structured scientific deliberation. "
+        "Your role is to surface genuine weaknesses in the dominant view: "
+        "replication failures, confounds, effect-size inflation, or alternative mechanisms. "
+        "Be precise — name actual studies, methods, or results where possible."
+    )
 
     conflict, builder_reb, skeptic_reb = await asyncio.gather(
         loop.run_in_executor(None, _delib_llm, conflict_prompt,  sys_judge,   100),
@@ -571,17 +613,25 @@ async def _run_deliberation(query: str, round1: List[Dict]) -> Dict:
 
     # ── Judge verdict (needs rebuttals first) ──────────────────────────────────
     verdict_prompt = (
-        f"Topic: {query}\n\n"
-        f"Round 1 — Builder: {b_view}\n"
-        f"Round 1 — Skeptic: {s_view}\n"
-        f"Round 1 — Archivist: {a_view}\n\n"
-        f"Round 2 — Builder rebuttal: {builder_reb}\n"
-        f"Round 2 — Skeptic rebuttal: {skeptic_reb}\n\n"
-        "After this full exchange, in 2 sentences: (1) What does the weight of "
-        "evidence support? (2) What genuine uncertainty or disagreement remains?"
+        f"Research question: {query}\n\n"
+        f"[Round 1] Builder: {b_view}\n"
+        f"[Round 1] Skeptic: {s_view}\n"
+        f"[Round 1] Archivist: {a_view}\n\n"
+        f"[Round 2] Builder rebuttal: {builder_reb}\n"
+        f"[Round 2] Skeptic rebuttal: {skeptic_reb}\n\n"
+        "Issue your verdict in exactly 2 sentences:\n"
+        "Sentence 1 — What does the preponderance of evidence support? "
+        "Name specific findings, effect sizes, or mechanisms where they exist.\n"
+        "Sentence 2 — What genuine scientific uncertainty or ongoing disagreement remains? "
+        "Be specific about what is still unresolved and why. "
+        "Do NOT be vague — 'more research is needed' is not acceptable."
     )
-    sys_verdict = ("You are a calibrated scientific judge. Your verdict must "
-                   "acknowledge both what is settled and what remains contested.")
+    sys_verdict = (
+        "You are a calibrated scientific judge rendering a final verdict. "
+        "Your ruling must be specific, evidence-grounded, and intellectually honest. "
+        "Acknowledge what is well-established AND what remains genuinely contested. "
+        "Never give a fence-sitting non-answer — take a defensible position."
+    )
     verdict = await loop.run_in_executor(None, _delib_llm, verdict_prompt, sys_verdict, 200)
 
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)

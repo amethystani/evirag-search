@@ -39,6 +39,9 @@ const Icon = ({ name, size = 16, stroke = 1.6, className = "" }) => {
     case "compass": return <svg {...common}><circle cx="12" cy="12" r="9"/><path d="M14.5 9.5L13 13l-3.5 1.5L11 11z"/></svg>;
     case "cpu": return <svg {...common}><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>;
     case "user": return <svg {...common}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>;
+    case "close": return <svg {...common}><path d="M18 6L6 18M6 6l12 12"/></svg>;
+    case "chart": return <svg {...common}><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-6"/></svg>;
+    case "file-text": return <svg {...common}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>;
     default: return <svg {...common}/>;
   }
 };

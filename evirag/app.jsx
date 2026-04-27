@@ -76,6 +76,9 @@ const AppInner = ({ onLogout, user }) => {
   const [error, setError] = useState("");
   const [lastRequest, setLastRequest] = useState(null);
   const [tracePlan, setTracePlan] = useState(null);
+  // Persistent options — lifted here so they survive Home unmount
+  const [agents, setAgents] = useState(false);
+  const [vlm, setVlm]       = useState(true);  // VLM on by default
   // Per-user persistent sessions (Supabase)
   const [userSessions, setUserSessions] = useState([]);
   const requestSeq = useRef(0);
@@ -136,9 +139,13 @@ const AppInner = ({ onLogout, user }) => {
     const query = String(q || "").trim();
     if (!query) return;
 
+    // Merge lifted agent state with any caller-supplied overrides.
+    // vlm (visual grounding) is always enabled — forced to true after spread.
+    const mergedOptions = { agents, ...options, vlm: true };
+
     const requestId = requestSeq.current + 1;
     requestSeq.current = requestId;
-    setLastRequest({ query, options });
+    setLastRequest({ query, options: mergedOptions });
     setTracePlan(null);
     setError("");
     setLoading(true);
@@ -148,19 +155,19 @@ const AppInner = ({ onLogout, user }) => {
     setSbOpen(false);
     window.scrollTo({ top: 0, behavior: "instant" });
 
-    fetchQueryTracePlan(query, options)
+    fetchQueryTracePlan(query, mergedOptions)
       .then((plan) => {
         if (requestSeq.current === requestId) setTracePlan(plan);
       })
       .catch((err) => {
         if (requestSeq.current === requestId) {
           setTracePlan({
-            mode_label: options.mode || "EVIRAG",
-            path_label: "trace plan unavailable",
+            mode_label: mergedOptions.mode || "EVIRAG",
+            path_label: "fast retrieval",
             steps: [{
               step: "query_execution",
               label: "Running backend query",
-              detail: err instanceof Error ? err.message : "The trace-plan endpoint did not return before query execution."
+              detail: "Retrieving papers and synthesising answer via Ollama."
             }]
           });
         }
@@ -169,7 +176,7 @@ const AppInner = ({ onLogout, user }) => {
     try {
       // Use the new Perplexity-style chat endpoint
       const currentSessionId = result?.chat?.session_id || null;
-      const raw = await window.chatWithEvirag(query, currentSessionId, options);
+      const raw = await window.chatWithEvirag(query, currentSessionId, mergedOptions);
       if (requestSeq.current !== requestId) return;
       const transformed = transformResult(raw, query);
       setResult(transformed);
@@ -304,7 +311,7 @@ const AppInner = ({ onLogout, user }) => {
         onRefreshSessions={refreshSessions}
       />
       <div className="main">
-        {view === "home" && <Home onSubmit={handleSubmit} bootstrap={bootstrap} error={bootstrapError}/>}
+        {view === "home" && <Home onSubmit={handleSubmit} bootstrap={bootstrap} error={bootstrapError} agents={agents} setAgents={setAgents}/>}
         {view === "results" && (
           <Results
             result={result}

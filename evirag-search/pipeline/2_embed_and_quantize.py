@@ -16,8 +16,14 @@ Expected throughput on 48 GB Ada: ~10 000–20 000 papers/sec → ~40M papers in
 Input:  ./raw_corpus/batch_*.parquet
 Output: ./embeddings/
           binary.npy        — packed bits (N × 96 uint8)
-          ids.npy           — OpenAlex IDs (str, N)
-          metadata.parquet  — id, title, year, doi, cited_by_count, source, text_excerpt
+          ids.npy           — paper IDs (str, N)
+          metadata.parquet  — id, title, year, doi, cited_by_count, source, text_excerpt (≤2 000 chars, ALL papers)
+          fulltext.parquet  — id, full_text (≤32 000 chars, only papers where text > 2 000 chars)
+
+Two-parquet design:
+  metadata.parquet  tiny, always loaded by DuckDB — fast ID→title lookups
+  fulltext.parquet  ~60 GB compressed for 8M+ s2orc papers — queried only for top-K results
+  JOIN on id at query time to get full paper context for the retrieved papers
 """
 
 import os
@@ -152,12 +158,11 @@ def embed_texts(texts: list[str]) -> np.ndarray:
     return np.vstack(all_binary)   # (N, 96)
 
 
-# ── Metadata writer ───────────────────────────────────────────────────────────
+# ── Writers ────────────────────────────────────────────────────────────────────
 class MetaWriter:
-    """Streaming parquet writer — avoids holding all metadata in RAM."""
-    # text_excerpt = title + " [SEP] " + abstract, capped at 4 000 chars.
-    # This is exactly what SPECTER was fed, so agents can read the same
-    # text the embedding model used — no information is lost.
+    """Lightweight metadata for ALL papers — kept small for fast DuckDB scans.
+    text_excerpt ≤ 2 000 chars (covers full abstract for every paper).
+    """
     SCHEMA = pa.schema([
         pa.field("id",             pa.string()),
         pa.field("title",          pa.string()),
@@ -165,7 +170,7 @@ class MetaWriter:
         pa.field("doi",            pa.string()),
         pa.field("cited_by_count", pa.int32()),
         pa.field("source",         pa.string()),
-        pa.field("text_excerpt",   pa.string()),   # ← full text agents reason over
+        pa.field("text_excerpt",   pa.string()),
     ])
 
     def __init__(self, path: Path):
@@ -182,6 +187,45 @@ class MetaWriter:
             "text_excerpt":   pa.array([r["text_excerpt"]   for r in rows], type=pa.string()),
         })
         self._writer.write_table(table)
+
+    def close(self):
+        self._writer.close()
+
+
+class FullTextWriter:
+    """Full paper text for papers where content exceeds the metadata excerpt.
+    Only written for papers where raw text > 2 000 chars (s2orc papers in peS2o,
+    open-access PDFs, etc.).  Stored separately so metadata.parquet stays fast.
+    At query time: DuckDB JOINs fulltext.parquet on id for the top retrieved papers.
+    Cap: 32 000 chars — covers ~99% of s2orc papers in full, avg 31 k chars.
+    """
+    SCHEMA = pa.schema([
+        pa.field("id",        pa.string()),
+        pa.field("full_text", pa.string()),
+    ])
+    THRESHOLD = 2_001    # only write if raw text is longer than text_excerpt
+    CAP       = 32_000   # hard cap per paper
+
+    def __init__(self, path: Path):
+        self._writer = pq.ParquetWriter(str(path), self.SCHEMA, compression="zstd")
+        self.n_written = 0
+
+    def write(self, rows: list[dict]):
+        """Only writes rows where raw text length exceeds the excerpt threshold."""
+        ids, texts = [], []
+        for r in rows:
+            ft = r.get("full_text", "")
+            if ft and len(ft) > self.THRESHOLD:
+                ids.append(r["id"])
+                texts.append(ft[:self.CAP])
+        if not ids:
+            return
+        table = pa.table({
+            "id":        pa.array(ids,   type=pa.string()),
+            "full_text": pa.array(texts, type=pa.string()),
+        })
+        self._writer.write_table(table)
+        self.n_written += len(ids)
 
     def close(self):
         self._writer.close()
