@@ -429,25 +429,10 @@ def _synthesize_view_reason(query: str, snippets: List[str], stance: str) -> str
         text = _re.sub(r' {2,}', ' ', text).strip()
         text = text.rstrip(',; ')
 
-        # ── Sentence-boundary cleanup (no mid-word cuts) ──────────────────────
-        # Cap at 600 chars, always at a complete sentence boundary.
-        if len(text) > 600:
-            capped = text[:600]
-            best = -1
-            for sep in ['. ', '! ', '? ']:
-                idx = capped.rfind(sep)
-                if idx > best:
-                    best = idx
-            if best > 150:
-                text = capped[:best + 1].strip()
-            else:
-                # No good sentence boundary — trim to last word, add ellipsis
-                last_sp = capped.rfind(' ')
-                text = (capped[:last_sp].rstrip(',;') + '…') if last_sp > 150 else capped
-
-        # If text still doesn't end with terminal punctuation, find the last
-        # complete sentence.  This also catches mid-word token-limit stops (where
-        # the last "word" is a fragment like "amy" instead of "amyloid").
+        # ── Sentence-boundary cleanup (no mid-word cuts, no hard char cap) ───
+        # No character limit — the drawer scrolls, so the full synthesis is
+        # always shown.  Only clean up mid-word token-limit stops (e.g. "amy"
+        # instead of "amyloid").
         if text and text[-1] not in '.!?…':
             best = -1
             for sep in ['. ', '! ', '? ']:
@@ -655,11 +640,12 @@ async def _run_agent(agent_key: str, cfg: Dict, query: str, stagger_s: float = 0
 
 
 # ── Deliberation helpers ───────────────────────────────────────────────────────
-def _delib_llm(prompt: str, system: str, max_tokens: int = 280) -> str:
+def _delib_llm(prompt: str, system: str, max_tokens: int = 512) -> str:
     """Blocking single-call LLM for deliberation exchange.
 
-    Generous max_tokens (default 280 ≈ 200 words) so the model fits 1-2 complete
-    sentences before any trimming. Original simple sentence-boundary logic.
+    Default max_tokens=512 so the model fits 2-3 complete sentences without
+    being cut mid-word.  No character cap — output is shown verbatim in the
+    drawer which scrolls.  Only sentence-boundary cleanup for mid-word stops.
     """
     from ollama_cloud_client import get_cloud_client
     try:
@@ -669,16 +655,21 @@ def _delib_llm(prompt: str, system: str, max_tokens: int = 280) -> str:
         if not text:
             return ""
         text = text.strip()
-        # Find the LAST sentence-ending punctuation+space, take everything up to it.
-        # If no boundary exists, just return the text capped at 400 chars.
-        last_idx = -1
-        for end in ['. ', '! ', '? ', '.\n', '!\n', '?\n']:
-            idx = text.rfind(end)
-            if idx > last_idx:
-                last_idx = idx
-        if last_idx > 30:
-            return text[:last_idx + 1].strip()
-        return text[:400].strip()
+        # If the model was cut off mid-word (no terminal punctuation at end),
+        # trim to the last complete sentence boundary rather than truncating.
+        if text and text[-1] not in '.!?…':
+            last_idx = -1
+            for end in ['. ', '! ', '? ', '.\n', '!\n', '?\n']:
+                idx = text.rfind(end)
+                if idx > last_idx:
+                    last_idx = idx
+            if last_idx > 30:
+                return text[:last_idx + 1].strip()
+            # No good boundary — trim to last whole word + period
+            last_sp = text.rfind(' ')
+            if last_sp > 20:
+                return text[:last_sp].rstrip(',;') + '.'
+        return text
     except Exception as e:
         print(f"[deliberation] LLM error: {e}")
         return ""
@@ -742,9 +733,9 @@ async def _run_deliberation(query: str, round1: List[Dict]) -> Dict:
     sys_skeptic = "You are a scientific researcher critiquing the mainstream view with concrete methodological objections."
 
     conflict, builder_reb, skeptic_reb = await asyncio.gather(
-        loop.run_in_executor(None, _delib_llm, conflict_prompt,  sys_judge,   100),
-        loop.run_in_executor(None, _delib_llm, builder_r_prompt, sys_builder, 140),
-        loop.run_in_executor(None, _delib_llm, skeptic_r_prompt, sys_skeptic, 140),
+        loop.run_in_executor(None, _delib_llm, conflict_prompt,  sys_judge,   200),
+        loop.run_in_executor(None, _delib_llm, builder_r_prompt, sys_builder, 256),
+        loop.run_in_executor(None, _delib_llm, skeptic_r_prompt, sys_skeptic, 256),
     )
 
     # ── Judge verdict (needs rebuttals first) ──────────────────────────────────
@@ -761,7 +752,7 @@ async def _run_deliberation(query: str, round1: List[Dict]) -> Dict:
         "then what remains genuinely uncertain."
     )
     sys_verdict = "You are a calibrated scientific judge rendering a final, evidence-based verdict."
-    verdict = await loop.run_in_executor(None, _delib_llm, verdict_prompt, sys_verdict, 200)
+    verdict = await loop.run_in_executor(None, _delib_llm, verdict_prompt, sys_verdict, 384)
 
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
 
@@ -1039,18 +1030,22 @@ async def chat(request: ChatRequest):
         # Best relevance across agents
         best_relevance = max((ar["relevance"] for ar in agent_results), default=0.5)
 
-        # Build view synthesis block for the main answer — include deliberation
+        # Build view synthesis block for the main answer — use anonymous labels
+        # so the LLM cannot echo agent names ("Builder", "Skeptic") into the
+        # final prose answer.  The user sees those names only in the Agents drawer.
         agent_views_text = ""
-        for ar in agent_results:
+        anon_labels = ["Evidence A", "Evidence B", "Evidence C", "Evidence D"]
+        for idx_ar, ar in enumerate(agent_results):
             if ar["synthesis"]:
-                agent_views_text += f"- {ar['name']} ({ar['stance']}): {ar['synthesis']}\n"
+                label = anon_labels[idx_ar] if idx_ar < len(anon_labels) else f"Evidence {idx_ar+1}"
+                agent_views_text += f"- {label}: {ar['synthesis']}\n"
         if deliberation.get("conflict"):
-            agent_views_text += f"\nKey conflict identified: {deliberation['conflict']}\n"
+            agent_views_text += f"\nCore scientific tension: {deliberation['conflict']}\n"
         for r2 in deliberation.get("round2", []):
             if r2.get("rebuttal"):
-                agent_views_text += f"- {r2['name']} (rebuttal): {r2['rebuttal']}\n"
+                agent_views_text += f"- Counter-perspective: {r2['rebuttal']}\n"
         if deliberation.get("verdict"):
-            agent_views_text += f"\nJudge verdict: {deliberation['verdict']}\n"
+            agent_views_text += f"\nBalanced assessment: {deliberation['verdict']}\n"
 
         # Main answer synthesis — feed FULL peS2o body text (up to 4000 chars per paper)
         # for 6 papers = 24 000 chars of evidence.  The AI must be able to cite any
@@ -1084,6 +1079,14 @@ async def chat(request: ChatRequest):
             r'(?i)(?:The best(?:-| )supported position is:)?\s*\*{0,2}Evolving Claim:\*{0,2}.*$',
             '', answer_md, flags=re.DOTALL
         ).strip()
+        # Strip any 【...】 / [Agent name...] markers the LLM may have emitted
+        # despite being told not to — these are pipeline-internal and should
+        # never appear in the user-facing answer.
+        answer_body = re.sub(r'【[^】]*】', '', answer_body)
+        answer_body = re.sub(
+            r'\[(?:Builder|Skeptic|Judge|Archivist|Evidence [A-D])[^\]]*\]', '', answer_body
+        )
+        answer_body = re.sub(r' {2,}', ' ', answer_body).strip()
 
         # Build EVIRAG answer_obj from agent outputs
         builder_ar  = next((ar for ar in agent_results if ar["agent_name"] == "builder"),  None)
