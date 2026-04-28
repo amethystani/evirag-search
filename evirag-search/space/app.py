@@ -37,6 +37,7 @@ DATA_DIR    = Path("/data")
 INDEX_PATH  = DATA_DIR / "evirag.index"
 IDS_PATH    = DATA_DIR / "ids.npy"
 META_PATH   = DATA_DIR / "metadata.parquet"
+CORPUS_PATH = DATA_DIR / "corpus.parquet"     # ≤4000-char peS2o full_text
 MODEL_NAME  = "allenai-specter"
 DIM         = 768
 NPROBE      = 128     # clusters to search (higher = better recall, slower)
@@ -67,25 +68,33 @@ def _load():
         print("Model ready.")
 
         # 2. Download files from HF Datasets (skip if already cached on disk)
-        for filename, dest in [
-            ("evirag.index",     INDEX_PATH),
-            ("ids.npy",          IDS_PATH),
-            ("metadata.parquet", META_PATH),
-        ]:
+        # corpus.parquet (full_text) is OPTIONAL — search still works without it.
+        required_files = [
+            ("evirag.index",     INDEX_PATH,   True),
+            ("ids.npy",          IDS_PATH,     True),
+            ("metadata.parquet", META_PATH,    True),
+            ("corpus.parquet",   CORPUS_PATH,  False),   # optional: full_text
+        ]
+        for filename, dest, required in required_files:
             if dest.exists():
                 print(f"Using cached {filename}")
                 continue
             _state["status"] = f"downloading_{filename}"
             print(f"Downloading {filename} from HF...")
-            local = hf_hub_download(
-                repo_id=DATASET_ID,
-                filename=filename,
-                repo_type="dataset",
-                token=HF_TOKEN or None,
-                local_dir=str(DATA_DIR),
-                local_dir_use_symlinks=False,
-            )
-            print(f"  → {local}")
+            try:
+                local = hf_hub_download(
+                    repo_id=DATASET_ID,
+                    filename=filename,
+                    repo_type="dataset",
+                    token=HF_TOKEN or None,
+                    local_dir=str(DATA_DIR),
+                    local_dir_use_symlinks=False,
+                )
+                print(f"  → {local}")
+            except Exception as exc:
+                if required:
+                    raise
+                print(f"  (optional file '{filename}' not on HF yet — skipping: {exc})")
 
         # 3. Load FAISS index into RAM
         _state["status"] = "loading_index"
@@ -103,11 +112,20 @@ def _load():
         _state["ids"] = np.load(str(IDS_PATH), allow_pickle=True)
         print(f"  {len(_state['ids']):,} IDs loaded")
 
-        # 5. Open metadata Parquet via DuckDB (stays on disk)
+        # 5. Open metadata + corpus Parquet via DuckDB (both stay on disk).
+        # corpus.parquet (≤4000-char full_text) JOINed at query time when present.
         _state["status"] = "loading_metadata"
         print("Opening metadata via DuckDB...")
         conn = duckdb.connect(database=":memory:")
         conn.execute(f"CREATE VIEW papers AS SELECT * FROM read_parquet('{META_PATH}')")
+        if CORPUS_PATH.exists():
+            print("Opening corpus parquet (full_text) via DuckDB...")
+            conn.execute(f"CREATE VIEW corpus AS SELECT id, full_text FROM read_parquet('{CORPUS_PATH}')")
+            _state["has_full_text"] = True
+            print("  Full-text JOIN view ready.")
+        else:
+            _state["has_full_text"] = False
+            print("  (no corpus.parquet — full_text disabled)")
         _state["db"] = conn
         print("  Metadata view ready.")
 
@@ -154,6 +172,7 @@ class Paper(BaseModel):
     source:        str | None
     score:         float   # Hamming distance (lower = more similar)
     text_excerpt:  str | None = None
+    full_text:     str | None = None    # ≤4000-char peS2o body text
 
 
 class SearchResponse(BaseModel):
@@ -177,9 +196,29 @@ def _embed_query(text: str) -> np.ndarray:
 
 
 def _fetch_metadata(openalex_ids: list[str]) -> dict[str, dict]:
+    """JOIN papers ⨝ corpus to fetch full_text (≤4000 chars) when available."""
     if not openalex_ids or _state["db"] is None:
         return {}
     ids_sql = ", ".join(f"'{i}'" for i in openalex_ids)
+    if _state.get("has_full_text"):
+        rows = _state["db"].execute(
+            f"SELECT p.id, p.title, p.year, p.doi, p.cited_by_count, p.source, "
+            f"       p.text_excerpt, c.full_text "
+            f"FROM papers p LEFT JOIN corpus c ON p.id = c.id "
+            f"WHERE p.id IN ({ids_sql})"
+        ).fetchall()
+        return {
+            r[0]: {
+                "title":          r[1],
+                "year":           r[2],
+                "doi":            r[3],
+                "cited_by_count": r[4],
+                "source":         r[5],
+                "text_excerpt":   r[6] or "",
+                "full_text":      r[7] or "",
+            }
+            for r in rows
+        }
     rows = _state["db"].execute(
         f"SELECT id, title, year, doi, cited_by_count, source, text_excerpt "
         f"FROM papers WHERE id IN ({ids_sql})"
@@ -192,6 +231,7 @@ def _fetch_metadata(openalex_ids: list[str]) -> dict[str, dict]:
             "cited_by_count": r[4],
             "source": r[5],
             "text_excerpt": r[6] or "",
+            "full_text":    "",
         }
         for r in rows
     }
@@ -260,6 +300,7 @@ def search(req: SearchRequest):
             source=meta.get("source"),
             score=float(dist),
             text_excerpt=meta.get("text_excerpt") or None,
+            full_text=meta.get("full_text") or None,
         ))
 
     latency_ms = (time.perf_counter() - t0) * 1000

@@ -244,18 +244,25 @@ async def _enrich_paper_text(paper_id: str, s2_entry: Dict, fallback: str) -> st
 
 
 # ── FAISS search + full-text enrichment ───────────────────────────────────────
+# Whether to ALSO try arXiv/PDF runtime enrichment when full_text is short.
+# Toggled off in the peS2o-only path because the parquet already gives us
+# the entire paper body within 4000 chars (test corpus) or 32 000 chars (prod).
+_RUNTIME_ENRICH = os.getenv("EVIRAG_RUNTIME_ENRICH", "0") == "1"
+
 async def _fetch_faiss_sources_enriched(query: str, k: int = 8):
     """
-    1. POST /search to the FAISS space (5 ms)
-    2. One S2 batch call to get ArXiv IDs + open-access PDF URLs (~600 ms)
-    3. Parallel per-paper full-text fetch (arXiv HTML or PDF, ~1-2 s)
-    4. Return sources with 'full_text' (up to 15 000 chars) and 'snippet' (500 chars).
+    Fast peS2o-first path:
+      1. POST /search to the FAISS space (~5 ms locally / ~50 ms HF)
+      2. Read full_text directly from the response (joined from corpus.parquet)
+      3. Only fall back to slow arXiv/PDF runtime fetch if EVIRAG_RUNTIME_ENRICH=1
 
-    All network calls run concurrently; already-cached papers are free.
+    This makes a typical agent retrieval go from ~2-5 s (with arXiv/PDF round trips)
+    down to ~50-200 ms — the AI gets the FULL peS2o body text directly from
+    our own indexed parquet, no third-party hops, no rate limits.
     """
     import httpx
     try:
-        async with httpx.AsyncClient(timeout=28) as cl:
+        async with httpx.AsyncClient(timeout=15) as cl:
             resp = await cl.post(f"{SEARCH_URL}/search", json={"query": query, "k": k})
             resp.raise_for_status()
             data = resp.json()
@@ -267,55 +274,68 @@ async def _fetch_faiss_sources_enriched(query: str, k: int = 8):
     if not papers:
         return [], 0.5
 
-    # Map corpus IDs for S2 batch
-    corpus_ids = []
-    for p in papers:
-        raw = p.get("openalex_id", "")
-        corpus_ids.append(raw.replace("pes2o:", "") if raw else "")
-
-    # Batch S2 metadata + all full-text fetches in parallel
-    s2_map = await _s2_batch_meta([c for c in corpus_ids if c])
-
-    enrich_tasks = []
-    for p, cid in zip(papers, corpus_ids):
-        # Best stored text we already have
-        fallback = (
-            p.get("text_excerpt") or p.get("text") or
-            p.get("abstract") or p.get("excerpt") or ""
-        ).strip()
-        s2_entry = s2_map.get(cid, {})
-        paper_id = p.get("openalex_id") or cid
-        enrich_tasks.append(_enrich_paper_text(paper_id, s2_entry, fallback))
-
-    full_texts = await asyncio.gather(*enrich_tasks, return_exceptions=True)
-
+    # ── Path A: peS2o full_text already available — use it directly ──────────
+    # Each paper carries up to 4000 chars of body text from corpus.parquet.
+    # No external API calls needed.
     sources: List[Dict] = []
     scores:  List[float] = []
-    for p, ft in zip(papers, full_texts):
-        if isinstance(ft, Exception):
-            ft = ""
-        full_text = str(ft).strip()
+    needs_runtime: List[int] = []   # indices that still want arXiv/PDF backup
+
+    for idx, p in enumerate(papers):
+        ft   = (p.get("full_text") or "").strip()
+        ex   = (p.get("text_excerpt") or "").strip()
+        # Prefer full_text > text_excerpt > title fallback
+        body = ft if len(ft) >= len(ex) else ex
+
         title = (p.get("title") or p.get("paper_title") or "Unknown").strip()
         year  = p.get("year") or p.get("publication_year")
         src   = p.get("source") or p.get("venue") or p.get("journal") or ""
         doi   = p.get("doi") or ""
 
-        if not full_text and title and title != "Unknown":
+        if not body and title and title != "Unknown":
             parts = [f'"{title}"']
             if year: parts.append(f"({year})")
             if src:  parts.append(f"in {src}")
-            full_text = " ".join(parts)
+            body = " ".join(parts)
+
+        # Mark for opt-in runtime enrichment if body is too short for solid synthesis
+        if _RUNTIME_ENRICH and len(body) < 1200:
+            needs_runtime.append(idx)
 
         sources.append({
-            "n":         p.get("rank", len(sources) + 1),
+            "n":         p.get("rank", idx + 1),
             "title":     title,
             "year":      year,
             "doi":       doi,
             "source":    src,
-            "snippet":   full_text[:500],    # short preview for UI
-            "full_text": full_text,           # full text for LLM (up to 15 000 chars)
+            "snippet":   body[:500],     # short preview for UI sidebar
+            "full_text": body,            # full body fed to LLM (≤4000 chars test / ≤15000 enriched)
         })
         scores.append(float(p.get("score", 768)))
+
+    # ── Path B: optional runtime enrichment for short stubs ───────────────────
+    # Only runs if EVIRAG_RUNTIME_ENRICH=1 and at least one paper is short.
+    if _RUNTIME_ENRICH and needs_runtime:
+        corpus_ids: List[str] = []
+        for idx in needs_runtime:
+            raw = papers[idx].get("openalex_id", "")
+            corpus_ids.append(raw.replace("pes2o:", "") if raw else "")
+        s2_map = await _s2_batch_meta([c for c in corpus_ids if c])
+
+        async def _maybe_enrich(idx: int, cid: str):
+            paper_id = papers[idx].get("openalex_id") or cid
+            return idx, await _enrich_paper_text(paper_id, s2_map.get(cid, {}), sources[idx]["full_text"])
+
+        enriched = await asyncio.gather(*[
+            _maybe_enrich(i, cid) for i, cid in zip(needs_runtime, corpus_ids)
+        ], return_exceptions=True)
+        for r in enriched:
+            if isinstance(r, Exception):
+                continue
+            idx, body = r
+            if body and len(body) > len(sources[idx]["full_text"]):
+                sources[idx]["full_text"] = body
+                sources[idx]["snippet"]   = body[:500]
 
     top_dist  = min(scores) if scores else 768
     relevance = round(max(0.0, 1.0 - top_dist / 768), 3)
@@ -326,10 +346,11 @@ async def _fetch_faiss_sources_enriched(query: str, k: int = 8):
 def _synthesize_view_reason(query: str, snippets: List[str], stance: str) -> str:
     import re as _re
     from ollama_cloud_client import get_cloud_client
-    # Use up to 4 000 chars per paper so agents reason from full sections,
-    # not just the opening sentence of an abstract.
+    # Feed the FULL peS2o body text (up to 4000 chars per paper) for 4 papers —
+    # 16k chars of evidence so the agent reasons from the whole paper body,
+    # not just an opening sentence. The LLM's 128k context can take much more.
     paper_blocks = []
-    for i, s in enumerate(snippets[:3], 1):
+    for i, s in enumerate(snippets[:4], 1):
         s = s.strip()
         if s:
             paper_blocks.append(f"[Paper {i}]\n{s[:4000]}")
@@ -440,7 +461,9 @@ def _chat_synthesize(sources_block: str, message: str,
     if preamble:
         user_parts.append(preamble)
     if has_ctx:
-        user_parts.append(f"Retrieved passages (cite with [N] when directly applicable):\n{sources_block[:3000]}")
+        # Pass the FULL retrieved corpus context (up to ~24k chars).
+        # Modern LLMs handle 128k+ tokens — there is no reason to truncate here.
+        user_parts.append(f"Retrieved passages (cite with [N] when directly applicable):\n{sources_block[:24000]}")
     user_parts.append(message)
     messages.append({"role": "user", "content": "\n\n".join(user_parts)})
 
@@ -469,8 +492,8 @@ async def _run_agent(agent_key: str, cfg: Dict, query: str) -> Dict:
     sources, relevance = await _fetch_faiss_sources_enriched(agent_query, cfg["k"])
 
     # Use full_text for synthesis so the agent reasons from the whole paper,
-    # not just the first 180 chars of an abstract.
-    full_texts = [s.get("full_text") or s.get("snippet", "") for s in sources if s.get("full_text") or s.get("snippet")][:3]
+    # not just the first 180 chars of an abstract. 4 papers × 4000 chars = 16k context.
+    full_texts = [s.get("full_text") or s.get("snippet", "") for s in sources if s.get("full_text") or s.get("snippet")][:4]
     if full_texts:
         synthesis = await loop.run_in_executor(
             None, _synthesize_view_reason, query, full_texts, cfg["view_stance"]
@@ -751,8 +774,10 @@ def _build_fast_answer(message: str, faiss_sources: List[Dict], faiss_relevance:
     keyword_hit = not query_terms or any(t in all_text for t in query_terms)
     has_relevant = faiss_relevance >= 0.70 and keyword_hit and any(s.get("snippet") for s in sources[:8])
 
+    # Feed FULL paper bodies (up to 4000 chars per paper × 6 papers = 24k chars).
+    # The AI must be able to reference any sentence/word in the body — not just the abstract.
     src_block = ("\n\n".join(
-        f"[{s['n']}] {(s.get('full_text') or s.get('snippet', ''))[:2500]}"
+        f"[{s['n']}] {s.get('title','').strip()}\n{(s.get('full_text') or s.get('snippet', ''))[:4000]}"
         for s in sources[:6] if s.get("full_text") or s.get("snippet")
     ) if has_relevant else "")
 
@@ -911,10 +936,11 @@ async def chat(request: ChatRequest):
         if deliberation.get("verdict"):
             agent_views_text += f"\nJudge verdict: {deliberation['verdict']}\n"
 
-        # Main answer synthesis — use full_text (up to 2 500 chars per paper)
-        # so the synthesis LLM can cite specific findings, methods, and numbers.
+        # Main answer synthesis — feed FULL peS2o body text (up to 4000 chars per paper)
+        # for 6 papers = 24 000 chars of evidence.  The AI must be able to cite any
+        # sentence anywhere in the paper, not just the opening line.
         src_block = "\n\n".join(
-            f"[{s['n']}] {(s.get('full_text') or s.get('snippet', ''))[:2500]}"
+            f"[{s['n']}] {s.get('title','').strip()}\n{(s.get('full_text') or s.get('snippet', ''))[:4000]}"
             for s in all_faiss_sources[:6]
             if s.get("full_text") or s.get("snippet")
         ) if best_relevance >= 0.65 else ""

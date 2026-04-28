@@ -41,6 +41,8 @@ FILES = [
     EMB_DIR / "evirag.index",
     EMB_DIR / "ids.npy",
     EMB_DIR / "metadata.parquet",
+    EMB_DIR / "corpus.parquet",       # full_text per paper (peS2o body, ≤4000 chars test / ≤32k prod)
+    EMB_DIR / "fulltext.parquet",     # optional: extended body for s2orc papers in production runs
 ]
 
 
