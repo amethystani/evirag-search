@@ -579,13 +579,19 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
   const openDrawer = (panel) => { setDrawerTab(panel); setDrawer(panel); };
 
   // ── Drawer panel content ─────────────────────────────────────────────────────
+  const FALLBACK_PREFIXES_D = [
+    "No synthesis returned","Mainstream evidence on this topic is supported",
+    "Several methodological limitations","Synthesis temporarily unavailable","No papers directly address",
+  ];
   const DrawerContent = () => {
+    const hasAgents = r.agents && r.agents.length > 0;
     const panels = [
-      { id: "sources", icon: "library", label: "Sources", count: totalAccSources },
-      { id: "claims",  icon: "doc",     label: "Claims",  count: totalAccClaims },
-      { id: "graph",   icon: "graph",   label: "Graph",   count: r.graph.nodes.length },
-      { id: "views",   icon: "sparkle", label: "Views",   count: r.views.length },
-      { id: "analysis",icon: "chart",   label: "Analysis",count: null },
+      { id: "sources",      icon: "library", label: "Sources", count: totalAccSources },
+      { id: "claims",       icon: "doc",     label: "Claims",  count: totalAccClaims  },
+      { id: "graph",        icon: "graph",   label: "Graph",   count: r.graph.nodes.length },
+      { id: "views",        icon: "sparkle", label: "Views",   count: r.views.length  },
+      ...(hasAgents ? [{ id: "deliberation", icon: "cpu", label: "Agents", count: r.agents.length }] : []),
+      { id: "analysis",     icon: "chart",   label: "Analysis",count: null },
     ];
     return (
       <div className="drawer-overlay" onClick={() => setDrawer(null)}>
@@ -676,6 +682,97 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
                 {r.views.map((v, i) => <ViewBlock key={i} v={v} idx={i} onClaim={(c) => { setDrawer(null); onOpenClaim(c); }}/>)}
               </div>
             )}
+            {drawerTab === "deliberation" && r.agents && (
+              <div style={{ paddingBottom: 8 }}>
+                {/* Round 1 — agent cards, vertical */}
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--muted-2)", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid var(--hair)" }}>
+                  Round 1 · Independent Retrieval
+                </div>
+                {r.agents.map((a, i) => {
+                  const c = STANCE_COLORS[a.stance] || STANCE_COLORS.neutral;
+                  const hasView = !!(a.reasoning && !FALLBACK_PREFIXES_D.some(p => a.reasoning.startsWith(p)));
+                  return (
+                    <div key={i} style={{ borderLeft: `3px solid ${c.border}`, background: c.bg, borderRadius: "0 8px 8px 0", padding: "11px 14px", marginBottom: 8, cursor: "pointer" }}
+                      onClick={() => { setDrawer(null); onOpenAgent(a); }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: hasView ? 7 : 0 }}>
+                        <AgentBadge glyph={a.glyph} stance={a.stance} size={22}/>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink)" }}>{a.name}</span>
+                          <span style={{ fontSize: 10, color: c.text, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", marginLeft: 8 }}>{a.stance}</span>
+                        </div>
+                        <span style={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace", color: "var(--muted-2)", flexShrink: 0 }}>
+                          {(a.confidence||0).toFixed(2)} · {a.retrieved||0}p
+                        </span>
+                      </div>
+                      {hasView ? (
+                        <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6, fontFamily: "Newsreader, serif", fontStyle: "italic" }}>
+                          "{a.reasoning}"
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 11, color: "var(--muted-2)", fontStyle: "italic" }}>
+                          — Synthesis unavailable for this query.
+                        </div>
+                      )}
+                      {a.topSources && a.topSources.filter(s => s.title && !["Unknown","(no title)"].includes(s.title)).length > 0 && (
+                        <div style={{ marginTop: 7, paddingTop: 5, borderTop: "1px solid var(--hair)" }}>
+                          {a.topSources.filter(s => s.title && !["Unknown","(no title)"].includes(s.title)).slice(0,2).map((s,si) => (
+                            <div key={si} style={{ fontSize: 10, color: "var(--muted)", lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              · {s.title}{s.year ? ` (${s.year})` : ""}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Judge conflict */}
+                {r.deliberation?.conflict && (
+                  <div style={{ margin: "16px 0 8px" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--muted-2)", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid var(--hair)" }}>
+                      Judge · Conflict Detected
+                    </div>
+                    <div style={{ padding: "10px 14px", background: "oklch(0.97 0.025 50)", border: "1px solid oklch(0.87 0.04 50)", borderRadius: 8 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 5 }}>CONFLICT</div>
+                      <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.55, fontFamily: "Newsreader, serif", fontStyle: "italic" }}>{r.deliberation.conflict}</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Round 2 rebuttals */}
+                {r.deliberation?.round2?.some(r2 => r2.rebuttal) && (
+                  <div style={{ margin: "16px 0 8px" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--muted-2)", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid var(--hair)" }}>
+                      Round 2 · Rebuttals
+                    </div>
+                    {r.deliberation.round2.filter(r2 => r2.rebuttal).map((r2, i) => {
+                      const c2 = STANCE_COLORS[r2.stance] || STANCE_COLORS.neutral;
+                      return (
+                        <div key={i} style={{ borderLeft: `3px solid ${c2.border}`, padding: "9px 12px", background: c2.bg, borderRadius: "0 8px 8px 0", marginBottom: 8 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>{r2.name}</div>
+                          <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.55, fontFamily: "Newsreader, serif" }}>→ {r2.rebuttal}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Verdict */}
+                {r.deliberation?.verdict && (
+                  <div style={{ margin: "16px 0 4px" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--muted-2)", marginBottom: 8, paddingBottom: 6, borderBottom: "1px solid var(--hair)" }}>
+                      Judge · Final Verdict
+                    </div>
+                    <div style={{ padding: "12px 14px", background: "var(--panel-2)", borderLeft: "3px solid var(--accent)", borderRadius: "0 8px 8px 0" }}>
+                      <div style={{ fontSize: 14.5, fontFamily: "Newsreader, serif", color: "var(--ink)", lineHeight: 1.7 }}>
+                        {r.deliberation.verdict}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {drawerTab === "analysis" && (
               <div>
                 <div style={{ marginBottom: 20 }}>
@@ -701,7 +798,7 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
                     ["Disagreement density", (r.metrics.disagreementDensity*100).toFixed(1)+"%", "|contradict| / |edges|", "Active controversy when > 15%."],
                     ["Conflict ratio",        r.metrics.conflictRatio.toFixed(2),                "|contradict| / |support|", "Balance of opposing vs. agreeing edges."],
                     ["Claim entropy",          r.metrics.claimEntropy.toFixed(2)+" bits",         "−Σ p log p over stances", "Diversity of stance distribution."],
-                    ["Visual–text mismatch",   r.metrics.visualMismatch.toFixed(2),               "1 − mean(CLIP align)", "Penalises figure–text contradictions."],
+                    ["Visual–text mismatch",   r.visual?.enabled ? r.metrics.visualMismatch.toFixed(2) : "—", "1 − mean(CLIP align)", r.visual?.enabled ? "Penalises figure–text contradictions." : "Visual grounding not active — PDF figures were not indexed for this query."],
                     ["Controversy class",      r.metrics.controversyClass,                         "temporal density derivative", "Stable | narrowing | open."]
                   ].map(([k, v, f, d], i) => (
                     <div key={i} className="metric" style={{ cursor: "pointer" }}
@@ -793,15 +890,13 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
           </>
         )}
 
-        {/* Agent Deliberation Panel — visible when 4-agent mode was used */}
-        {r.agents && r.agents.length > 0 && (
-          <AgentDeliberationPanel agents={r.agents} deliberation={r.deliberation} onOpenAgent={onOpenAgent}/>
-        )}
-
-        {/* Insight strip — one tap into any analytical panel. Counts grow with each turn. */}
+        {/* Insight strip — one tap into any analytical panel. Counts grow with each turn.
+            Deliberation is now a drawer tab (not inline) so the chat column stays clean. */}
         {(() => {
           const totalSources = r.chat?.total_sources ?? r.metrics.sources;
           const totalClaims  = r.chat?.total_claims  ?? r.metrics.claims;
+          const hasAgents    = r.agents && r.agents.length > 0;
+          const hasVerdict   = !!(r.deliberation?.verdict);
           return (
             <div className="insight-bar fade-up">
               <button className="insight-chip" onClick={() => openDrawer("sources")}>
@@ -820,6 +915,11 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
               {r.views.length > 0 && (
                 <button className="insight-chip" onClick={() => openDrawer("views")}>
                   <Icon name="sparkle" size={11}/> {r.views.length} views
+                </button>
+              )}
+              {hasAgents && (
+                <button className="insight-chip insight-chip--delib" onClick={() => openDrawer("deliberation")}>
+                  <Icon name="cpu" size={11}/> deliberation{hasVerdict ? " ✓" : ""}
                 </button>
               )}
               <button className="insight-chip insight-chip--conf" onClick={() => openDrawer("analysis")}>

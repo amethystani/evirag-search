@@ -1545,6 +1545,9 @@ input, textarea { font-family: inherit; color: inherit; }
 .insight-chip:hover { background: var(--panel); border-color: var(--hair-2); color: var(--ink); }
 .insight-chip--conf { border-color: var(--accent); color: var(--accent); }
 .insight-chip--conf:hover { background: oklch(0.55 0.10 50 / 0.08); }
+/* Deliberation chip — indigo/blue accent to distinguish from conf */
+.insight-chip--delib { border-color: oklch(0.52 0.12 260); color: oklch(0.52 0.12 260); }
+.insight-chip--delib:hover { background: oklch(0.52 0.12 260 / 0.07); }
 
 /* ── Drawer ─────────────────────────────────────────────────────────────── */
 .drawer-overlay {

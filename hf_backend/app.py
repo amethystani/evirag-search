@@ -387,26 +387,52 @@ def _synthesize_view_reason(query: str, snippets: List[str], stance: str) -> str
 
     try:
         client = get_cloud_client()
-        # 320 tokens lets the model write a complete 1-2 sentence finding without
-        # being chopped mid-sentence. Generation is still a single LLM call.
-        text = client.generate(prompt=user_msg, system=system_msg, temperature=0.22, max_tokens=320)
+        # 512 tokens: enough for 2-3 complete scientific sentences without forcing
+        # the model to stop mid-word, which was the source of "amy." (amyloid cut
+        # at the token boundary, then a period appended producing a fragment).
+        text = client.generate(prompt=user_msg, system=system_msg, temperature=0.22, max_tokens=512)
         text = (text or "").strip().split("**Evolving Claim")[0].strip()
         text = _re.sub(r'[\x00-\x1f\x7f]+', ' ', text)
         text = _re.sub(r' {2,}', ' ', text).strip()
-
-        # If the model finished mid-sentence (no terminal punctuation in last 40 chars),
-        # trim back to the LAST clean sentence boundary — but only if that boundary
-        # is past the half-way mark, so we keep useful content even when the model
-        # produces just one running sentence.
-        if text and text[-1] not in '.!?':
-            last_idx = max(text.rfind(p) for p in ['. ', '! ', '? '])
-            if last_idx > len(text) // 2:
-                text = text[:last_idx + 1].strip()
-
-        # Final safety net: if even after that we have meaningful content (>=20 chars),
-        # keep it and add a closing period so the UI renders cleanly.
         text = text.rstrip(',; ')
-        # If the model refused outright, retry once with a stronger directive.
+
+        # ── Sentence-boundary cleanup (no mid-word cuts) ──────────────────────
+        # Cap at 600 chars, always at a complete sentence boundary.
+        if len(text) > 600:
+            capped = text[:600]
+            best = -1
+            for sep in ['. ', '! ', '? ']:
+                idx = capped.rfind(sep)
+                if idx > best:
+                    best = idx
+            if best > 150:
+                text = capped[:best + 1].strip()
+            else:
+                # No good sentence boundary — trim to last word, add ellipsis
+                last_sp = capped.rfind(' ')
+                text = (capped[:last_sp].rstrip(',;') + '…') if last_sp > 150 else capped
+
+        # If text still doesn't end with terminal punctuation, find the last
+        # complete sentence.  This also catches mid-word token-limit stops (where
+        # the last "word" is a fragment like "amy" instead of "amyloid").
+        if text and text[-1] not in '.!?…':
+            best = -1
+            for sep in ['. ', '! ', '? ']:
+                idx = text.rfind(sep)
+                if idx > best:
+                    best = idx
+            if best > len(text) // 3:
+                # There is a real sentence before the fragment — keep it
+                text = text[:best + 1].strip()
+            else:
+                # Single incomplete sentence — trim to last whole word + period
+                last_sp = text.rfind(' ')
+                if last_sp > 30:
+                    text = text[:last_sp].rstrip(',;') + '.'
+                else:
+                    text += '.'   # very short, just cap it
+
+        # Refusal detection: retry once if the LLM hedged or refused
         is_refusal = (
             len(text) < 30
             or text.lower().startswith("no directly relevant evidence")
@@ -423,22 +449,21 @@ def _synthesize_view_reason(query: str, snippets: List[str], stance: str) -> str
             )
             try:
                 text = client.generate(prompt=retry_user, system=system_msg,
-                                       temperature=0.4, max_tokens=320)
+                                       temperature=0.4, max_tokens=512)
                 text = (text or "").strip()
                 text = _re.sub(r'[\x00-\x1f\x7f]+', ' ', text)
                 text = _re.sub(r' {2,}', ' ', text).strip()
             except Exception:
                 pass
         if len(text) < 20:
-            # Last-resort substantive answer driven by stance + topic.
-            return (f"Mainstream evidence on this topic is supported by multiple peer-reviewed "
-                    f"studies, though specific magnitudes and mechanisms vary across populations.")  if stance == "dominant" \
-                    else (f"Several methodological limitations and heterogeneous results across studies "
-                          f"warrant caution before treating this finding as settled.")
-        if text[-1] not in '.!?':
-            text += '.'
-        # Cap at 400 chars so the agent card stays compact in the UI.
-        return text[:400]
+            return (
+                "Mainstream evidence on this topic is supported by multiple peer-reviewed "
+                "studies, though specific magnitudes and mechanisms vary across populations."
+            ) if stance == "dominant" else (
+                "Several methodological limitations and heterogeneous results across studies "
+                "warrant caution before treating this finding as settled."
+            )
+        return text
     except Exception as exc:
         print(f"[agent] view reason error: {exc}")
         return f"Synthesis temporarily unavailable for the {stance} perspective."
