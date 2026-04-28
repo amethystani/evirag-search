@@ -528,8 +528,15 @@ async def _run_agent(agent_key: str, cfg: Dict, query: str) -> Dict:
     agent_query = cfg["query_fn"](query)
     loop = asyncio.get_event_loop()
 
-    # Full-text enriched search: FAISS → S2 batch → arXiv/PDF fetch (all async)
+    # Full-text enriched search: FAISS → corpus text → synthesis
     sources, relevance = await _fetch_faiss_sources_enriched(agent_query, cfg["k"])
+
+    # Retry once if the search returned papers with no body text at all —
+    # this can happen under concurrent load when the HF space returns empty metadata.
+    has_body = any(s.get("full_text") or s.get("snippet") for s in sources)
+    if sources and not has_body:
+        print(f"[agent:{agent_key}] All sources empty — retrying search once")
+        sources, relevance = await _fetch_faiss_sources_enriched(agent_query, cfg["k"])
 
     # Use full_text for synthesis so the agent reasons from the whole paper,
     # not just the first 180 chars of an abstract. 4 papers × 4000 chars = 16k context.
@@ -1106,13 +1113,15 @@ async def chat(request: ChatRequest):
                 "temperature":          ar["temperature"],
                 "duration_ms":          ar["duration_ms"],
                 "status":               ar["status"],
-                "reasoning":            ar["synthesis"] or "No synthesis returned.",
+                "reasoning":            ar["synthesis"] or "",
                 "retrieval_query":      ar["retrieval_query"],
-                # Top 3 paper titles this agent retrieved — shown in UI agent cards
+                # Top 3 paper titles this agent retrieved — shown in UI agent cards.
+                # Filter out placeholders ("Unknown", "(no title)", empty strings).
                 "top_sources": [
                     {"title": s.get("title", ""), "year": s.get("year"), "snippet": s.get("snippet", "")[:120]}
-                    for s in ar.get("sources", [])[:3]
-                ],
+                    for s in ar.get("sources", [])[:5]
+                    if s.get("title") and s.get("title") not in {"Unknown", "(no title)"}
+                ][:3],
             }
             for ar in agent_results
         ]

@@ -192,7 +192,15 @@ const AgentDeliberationPanel = ({ agents, deliberation, onOpenAgent }) => {
           <div className="agent-delib-grid">
             {agents.map((a, i) => {
               const c = STANCE_COLORS[a.stance] || STANCE_COLORS.neutral;
-              const hasView = a.reasoning && a.reasoning !== "No synthesis returned.";
+              // Known backend fallback / placeholder strings that should not render as content
+              const FALLBACK_PREFIXES = [
+                "No synthesis returned",
+                "Mainstream evidence on this topic is supported",
+                "Several methodological limitations and heterogeneous",
+                "Synthesis temporarily unavailable",
+                "No papers directly address",
+              ];
+              const hasView = !!(a.reasoning && !FALLBACK_PREFIXES.some(p => a.reasoning.startsWith(p)));
               const agentRole = {
                 builder:  "Builds the strongest supporting case from the literature",
                 skeptic:  "Searches for counter-evidence and contradictions",
@@ -226,17 +234,18 @@ const AgentDeliberationPanel = ({ agents, deliberation, onOpenAgent }) => {
                       "{a.reasoning}"
                     </div>
                   ) : (
-                    <div style={{ fontSize: 11, color: "var(--muted-2)", lineHeight: 1.5, marginBottom: 8, fontStyle: "italic", minHeight: 44 }}>
-                      {a.retrieved > 0 ? `${a.retrieved} papers retrieved, synthesizing…` : "No corpus match found."}
+                    <div style={{ fontSize: 11, color: "var(--muted-2)", lineHeight: 1.5, marginBottom: 8, fontStyle: "italic", minHeight: 44, display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ opacity: 0.5, fontSize: 16, lineHeight: 1 }}>—</span>
+                      <span>{a.retrieved > 0 ? "Synthesis unavailable for this query." : "No corpus match found."}</span>
                     </div>
                   )}
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", fontFamily: "JetBrains Mono, monospace", fontSize: 10, color: "var(--muted-2)", borderTop: "1px solid var(--hair)", paddingTop: 6, marginTop: "auto" }}>
                     <span><strong style={{ color: "var(--ink)" }}>{a.retrieved || a.num_chunks || 0}</strong> papers</span>
                     {a.durationMs > 0 && <span>{(a.durationMs/1000).toFixed(1)}s</span>}
                   </div>
-                  {a.topSources && a.topSources.length > 0 && (
+                  {a.topSources && a.topSources.filter(s => s.title && !["Unknown","(no title)"].includes(s.title)).length > 0 && (
                     <div style={{ marginTop: 5 }}>
-                      {a.topSources.slice(0,2).map((s,si) => (
+                      {a.topSources.filter(s => s.title && !["Unknown","(no title)"].includes(s.title)).slice(0,2).map((s,si) => (
                         <div key={si} style={{ fontSize: 10, color: "var(--muted)", lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           · {s.title}{s.year ? ` (${s.year})` : ""}
                         </div>
@@ -744,8 +753,6 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
               <span className="pill" onClick={() => openDrawer("analysis")}><span className="lbl">conf</span> {r.metrics.confidenceLabel} · {r.metrics.confidence.toFixed(2)}</span>
             </div>
           </div>
-          <button className="icon-btn" title="Share"><Icon name="share" size={15}/></button>
-          <button className="icon-btn" title="Copy"><Icon name="copy" size={15}/></button>
         </div>
 
         {/* Chat history */}

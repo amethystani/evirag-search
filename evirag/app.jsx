@@ -76,9 +76,11 @@ const AppInner = ({ onLogout, user }) => {
   const [error, setError] = useState("");
   const [lastRequest, setLastRequest] = useState(null);
   const [tracePlan, setTracePlan] = useState(null);
-  // Persistent options — lifted here so they survive Home unmount
+  // Persistent options — lifted here so they survive Home unmount.
+  // 4-agent stays user-controlled (off by default — it's a 30s+ wait); user
+  // toggles it explicitly. Visual grounding is always on.
   const [agents, setAgents] = useState(false);
-  const [vlm, setVlm]       = useState(true);  // VLM on by default
+  const [vlm, setVlm]       = useState(true);
   // Per-user persistent sessions (Supabase)
   const [userSessions, setUserSessions] = useState([]);
   const requestSeq = useRef(0);

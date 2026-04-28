@@ -922,7 +922,7 @@ input, textarea { font-family: inherit; color: inherit; }
 }
 .agent-delib-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
 }
 .agent-delib-card {
@@ -932,6 +932,16 @@ input, textarea { font-family: inherit; color: inherit; }
   transition: filter 0.12s;
   display: flex;
   flex-direction: column;
+  /* Critical: without min-width:0, long unbroken text in any child blows
+     out the grid and shoves siblings off-screen. */
+  min-width: 0;
+  overflow: hidden;
+}
+/* Force every text child to wrap inside the card. */
+.agent-delib-card *,
+.agent-delib-card {
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .agent-delib-card:last-child { border-right: 0; }
 .agent-delib-card:hover { filter: brightness(0.97); }
@@ -1079,7 +1089,9 @@ input, textarea { font-family: inherit; color: inherit; }
   position: fixed; inset: 0;
   background: rgba(26, 25, 22, 0.45);
   backdrop-filter: blur(2px);
-  z-index: 50;
+  /* Sit above sidebar (z=60) and sidebar overlay (z=55) so modals
+     never get hidden behind the sidebar on mobile / collapsed states. */
+  z-index: 200;
   display: grid; place-items: center;
   padding: 24px;
   animation: fadeIn .18s ease;
@@ -1249,14 +1261,28 @@ input, textarea { font-family: inherit; color: inherit; }
   .page h1 { font-size: 26px; }
 }
 
-/* ── Agent deliberation grid — 2-col on narrow screens ──────────────────── */
-@media (max-width: 700px) {
+/* ── Agent deliberation grid — responsive 4 → 2 → 1 col ────────────────── */
+@media (max-width: 900px) {
   .agent-delib-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  /* Reset row borders for the new 2-col layout */
+  .agent-delib-card { border-right: 1px solid var(--hair); border-top: 0; }
   .agent-delib-card:nth-child(2n) { border-right: 0; }
   .agent-delib-card:nth-child(n+3) { border-top: 1px solid var(--hair); }
 }
+@media (max-width: 520px) {
+  /* On phones, stack into a single column so each agent's content has
+     full reading width and never overflows. */
+  .agent-delib-grid {
+    grid-template-columns: 1fr;
+  }
+  .agent-delib-card { border-right: 0; border-top: 0; }
+  .agent-delib-card + .agent-delib-card { border-top: 1px solid var(--hair); }
+}
+/* Make the surrounding panel hide horizontal overflow so a stubborn line
+   never produces a sideways scrollbar. */
+.agent-delib { overflow: hidden; }
 
 /* scrollbar */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
