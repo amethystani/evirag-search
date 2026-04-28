@@ -262,7 +262,9 @@ async def _fetch_faiss_sources_enriched(query: str, k: int = 8):
     """
     import httpx
     try:
-        async with httpx.AsyncClient(timeout=15) as cl:
+        # 28s gives the HF free-tier search Space enough headroom to handle
+        # concurrent agent requests without hitting the 15s queue timeout.
+        async with httpx.AsyncClient(timeout=28) as cl:
             resp = await cl.post(f"{SEARCH_URL}/search", json={"query": query, "k": k})
             resp.raise_for_status()
             data = resp.json()
@@ -520,10 +522,18 @@ def _chat_synthesize(sources_block: str, message: str,
 
 
 # ── Single-agent async runner ─────────────────────────────────────────────────
-async def _run_agent(agent_key: str, cfg: Dict, query: str) -> Dict:
-    """FAISS search + full-text enrichment + one-sentence synthesis for one agent."""
+async def _run_agent(agent_key: str, cfg: Dict, query: str, stagger_s: float = 0.0) -> Dict:
+    """FAISS search + full-text enrichment + one-sentence synthesis for one agent.
+
+    stagger_s: seconds to sleep before the FAISS search call so that 4 concurrent
+    agents don't all slam the HF search Space at the same instant, which causes
+    queue-based timeouts on the free tier.
+    """
     import time
     t0 = time.perf_counter()
+
+    if stagger_s > 0:
+        await asyncio.sleep(stagger_s)
 
     agent_query = cfg["query_fn"](query)
     loop = asyncio.get_event_loop()
@@ -538,9 +548,17 @@ async def _run_agent(agent_key: str, cfg: Dict, query: str) -> Dict:
         print(f"[agent:{agent_key}] All sources empty — retrying search once")
         sources, relevance = await _fetch_faiss_sources_enriched(agent_query, cfg["k"])
 
-    # Use full_text for synthesis so the agent reasons from the whole paper,
-    # not just the first 180 chars of an abstract. 4 papers × 4000 chars = 16k context.
+    # Use full_text for synthesis (up to 4000 chars per paper × 4 papers).
+    # If body text is missing, fall back to paper titles so the LLM can still
+    # draw on its own scientific knowledge anchored to the retrieved titles.
     full_texts = [s.get("full_text") or s.get("snippet", "") for s in sources if s.get("full_text") or s.get("snippet")][:4]
+    if not full_texts and sources:
+        # Use titles as minimal context — the system prompt allows the model
+        # to draw on established knowledge when retrieved bodies are thin.
+        full_texts = [
+            s.get("title", "") for s in sources[:4]
+            if s.get("title") and s.get("title") not in {"Unknown", "(no title)"}
+        ]
     if full_texts:
         synthesis = await loop.run_in_executor(
             None, _synthesize_view_reason, query, full_texts, cfg["view_stance"]
@@ -934,10 +952,13 @@ async def chat(request: ChatRequest):
 
     # ── Branch: 4-agent deliberative vs fast path ──────────────────────────────
     if request.agents:
-        # ── Round 1: Run all 4 agents in parallel ─────────────────────────────
+        # ── Round 1: Run all 4 agents in parallel, staggered by 0.7s ──────────
+        # Without staggering, 4 simultaneous FAISS requests to the HF search
+        # Space cause queue-based timeouts on the free tier.  A 0.7s stagger
+        # distributes load over ~2s while keeping total latency nearly the same.
         agent_tasks = [
-            _run_agent(key, cfg, request.message)
-            for key, cfg in AGENT_CONFIGS.items()
+            _run_agent(key, cfg, request.message, stagger_s=i * 0.7)
+            for i, (key, cfg) in enumerate(AGENT_CONFIGS.items())
         ]
         agent_results: List[Dict] = list(await asyncio.gather(*agent_tasks))
 

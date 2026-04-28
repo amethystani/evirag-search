@@ -423,7 +423,7 @@ const AppInner = ({ onLogout, user }) => {
 ${modal.data.retrievalQuery}
 
 AGENT REASONING
-${modal.data.reasoning || "No agent reasoning returned."}`}
+${modal.data.reasoning && modal.data.reasoning.trim() ? modal.data.reasoning : "— Synthesis unavailable for this query (corpus returned no matching body text)."}`}
             </div>
           )}
           <div style={{ marginTop: 12, padding: 12, background: "var(--bg)", borderRadius: 8, fontFamily: "JetBrains Mono, monospace", fontSize: 11, color: "var(--ink-2)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
