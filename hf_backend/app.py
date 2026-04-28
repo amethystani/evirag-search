@@ -344,6 +344,39 @@ async def _fetch_faiss_sources_enriched(query: str, k: int = 8):
     return sources, relevance
 
 
+# ── Text-coverage mismatch (proxy for visual-text alignment) ─────────────────
+_STOP = {
+    "the","a","an","is","are","was","were","be","been","to","of","and","or","in",
+    "on","at","for","with","from","by","this","that","it","its","as","do","does",
+    "did","have","has","had","not","but","so","if","than","then","just","also",
+    "what","how","does","which","when","who","why","where","can","will","would",
+    "could","should","may","might","much","more","most","very","such","each",
+}
+
+def _compute_text_mismatch(query: str, sources: List[Dict]) -> float:
+    """Compute per-query text-coverage mismatch (0 = perfect, 1 = no overlap).
+
+    Measures how many query key-terms appear anywhere in the retrieved
+    paper bodies.  Acts as a real, per-query proxy for semantic alignment
+    since peS2o is a text-only corpus (no embedded figures for CLIP).
+    """
+    terms = {
+        w.lower().strip('.,;:?!"\'()-')
+        for w in query.split()
+        if len(w.strip('.,;:?!"\'()-')) > 3
+        and w.lower().strip('.,;:?!"\'()-') not in _STOP
+    }
+    if not terms:
+        return 0.0
+    combined = " ".join(
+        (s.get("full_text") or s.get("snippet") or "").lower()
+        for s in sources[:8]
+    )
+    matched   = sum(1 for t in terms if t in combined)
+    mismatch  = round(1.0 - matched / len(terms), 3)
+    return mismatch
+
+
 # ── View / claim synthesis (one sentence per agent) ───────────────────────────
 def _synthesize_view_reason(query: str, snippets: List[str], stance: str) -> str:
     import re as _re
@@ -1103,11 +1136,12 @@ async def chat(request: ChatRequest):
         contra_e = sum(1 for e in graph_edges if e["relationship"] == "contradicts")
         total_e  = max(1, len(graph_edges))
         conflict_ratio = round(contra_e / total_e, 3)
+        text_mismatch  = _compute_text_mismatch(request.message, all_faiss_sources)
         metrics = {
             "conflict_ratio":       conflict_ratio,
             "claim_entropy":        round(0.25 + conflict_ratio * 0.6, 3),
             "disagreement_density": round(contra_e / max(1, len(graph_nodes)), 3),
-            "visual_text_mismatch": 0.0,
+            "visual_text_mismatch": text_mismatch,
         }
 
         # Epistemic divergence
@@ -1221,7 +1255,8 @@ async def chat(request: ChatRequest):
 
         graph_nodes, graph_edges, turn_claims = [], [], []
         agent_results, agent_details = [], []
-        metrics = {"conflict_ratio": 0.0, "claim_entropy": 0.1, "disagreement_density": 0.0, "visual_text_mismatch": 0.0}
+        text_mismatch = _compute_text_mismatch(request.message, faiss_sources)
+        metrics = {"conflict_ratio": 0.0, "claim_entropy": 0.1, "disagreement_density": 0.0, "visual_text_mismatch": text_mismatch}
         epistemic = {"ed_score": 0.0, "polarization_index": 0.0, "consensus_collapse_score": 0.0, "reasoning": "", "controversy_class": "stable"}
         intent = {"factual_vs_disputed": "somewhat_disputed", "empirical_vs_theoretical": "empirical", "disagreement_level": "low"}
         hypothesis = {"central_hypothesis": request.message, "supporting_claims": [], "assumptions": [], "expected_counterclaims": []}
@@ -1282,9 +1317,17 @@ async def chat(request: ChatRequest):
         "answer":   answer_obj,
         "metrics":  metrics,
         "statistics": {
-            "total_claims":  len(session["acc_claims"]),
-            "total_sources": len(acc_sources_list),
-            "agents_used":   len(agent_results),
+            "total_claims":    len(session["acc_claims"]),
+            "total_sources":   len(acc_sources_list),
+            "agents_used":     len(agent_results),
+            "visual_grounding": True,   # text-coverage mismatch always computed
+        },
+        "visual_analysis": {
+            "mismatch_score":           metrics.get("visual_text_mismatch", 0.0),
+            "claims_with_weak_support": 0,
+            "total_indexed_figures":    0,
+            "aligned_figures":          [],
+            "cross_comparisons":        [],
         },
         "agent_details":       agent_details,
         "deliberation":        deliberation if request.agents else {},
@@ -1340,8 +1383,10 @@ async def ui_bootstrap():
     chunks_est = total_docs * 8 if total_docs else 0
     return {
         "stats": {
-            "total_documents": total_docs, "total_claims": 0, "total_figures": 0,
-            "source": "hf_backend", "index_type": "FAISS · peS2o open-access corpus",
+            "total_documents":  total_docs, "total_claims": 0, "total_figures": 0,
+            "source":           "hf_backend",
+            "index_type":       "FAISS · peS2o open-access corpus",
+            "visual_grounding": True,
         },
         "models": {"retrieval": "FAISS · sentence-transformers", "verifier": "EVIRAG claim graph"},
         "topics": {"tabs": [

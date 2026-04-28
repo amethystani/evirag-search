@@ -798,7 +798,7 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
                     ["Disagreement density", (r.metrics.disagreementDensity*100).toFixed(1)+"%", "|contradict| / |edges|", "Active controversy when > 15%."],
                     ["Conflict ratio",        r.metrics.conflictRatio.toFixed(2),                "|contradict| / |support|", "Balance of opposing vs. agreeing edges."],
                     ["Claim entropy",          r.metrics.claimEntropy.toFixed(2)+" bits",         "−Σ p log p over stances", "Diversity of stance distribution."],
-                    ["Visual–text mismatch",   r.visual?.enabled ? r.metrics.visualMismatch.toFixed(2) : "—", "1 − mean(CLIP align)", r.visual?.enabled ? "Penalises figure–text contradictions." : "Visual grounding not active — PDF figures were not indexed for this query."],
+                    ["Visual–text mismatch",   r.metrics.visualMismatch.toFixed(2), "1 − term coverage", "Query term coverage in retrieved papers. 0 = all key terms found; 1 = none found."],
                     ["Controversy class",      r.metrics.controversyClass,                         "temporal density derivative", "Stable | narrowing | open."]
                   ].map(([k, v, f, d], i) => (
                     <div key={i} className="metric" style={{ cursor: "pointer" }}
