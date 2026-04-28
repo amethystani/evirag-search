@@ -360,46 +360,86 @@ def _synthesize_view_reason(query: str, snippets: List[str], stance: str) -> str
 
     if stance == "dominant":
         instr = (
-            "In 1-2 sentences: What specific finding or mechanism do these papers provide "
-            "as the strongest evidence supporting the mainstream position? "
-            "Name a concrete result, effect size, or biological mechanism if present. "
-            "Be precise — never generic."
+            "In 1-2 sentences: state the strongest scientific finding that supports the "
+            "mainstream position on this topic. Use the retrieved paper bodies as supporting "
+            "context where they apply, and otherwise draw on established peer-reviewed "
+            "scientific knowledge. Name specific mechanisms, effect sizes, or study designs."
         )
     else:
         instr = (
-            "In 1-2 sentences: What specific counter-evidence, replication failure, "
-            "methodological limitation, or alternative explanation do these papers reveal? "
-            "Cite a concrete result or critique — never just say 'there is disagreement'."
+            "In 1-2 sentences: state the strongest scientific challenge — counter-evidence, "
+            "replication failure, methodological limitation, or alternative interpretation. "
+            "Use the retrieved paper bodies as supporting context where they apply, and "
+            "otherwise draw on established peer-reviewed knowledge. Be specific."
         )
 
     system_msg = (
-        "You are a rigorous scientific analyst producing one key finding per agent turn. "
-        "RULES: Never copy paper titles verbatim. Never say 'these papers suggest' or use "
-        "hedged meta-commentary — state the finding directly. Respond ONLY from the provided texts. "
-        "If the texts are irrelevant, say 'No directly relevant evidence found.' in one sentence."
+        "You are a rigorous scientific analyst. Produce ONE concrete substantive finding "
+        "in 1-2 sentences. The retrieved peS2o paper bodies below are supplementary context — "
+        "use them when relevant, but you MAY also draw on established peer-reviewed knowledge "
+        "to give a precise, evidence-grounded answer. Never copy paper titles verbatim. "
+        "Don't hedge with 'these papers suggest' — state the finding plainly. "
+        "Always respond with a substantive scientific claim — refusal is not allowed."
     )
     user_msg   = f"Research question: {query}\n\nFull paper texts:\n{snip_text}\n\n{instr}"
 
     try:
         client = get_cloud_client()
-        text = client.generate(prompt=user_msg, system=system_msg, temperature=0.22, max_tokens=160)
-        text = text.strip().split("**Evolving Claim")[0]
+        # 320 tokens lets the model write a complete 1-2 sentence finding without
+        # being chopped mid-sentence. Generation is still a single LLM call.
+        text = client.generate(prompt=user_msg, system=system_msg, temperature=0.22, max_tokens=320)
+        text = (text or "").strip().split("**Evolving Claim")[0].strip()
         text = _re.sub(r'[\x00-\x1f\x7f]+', ' ', text)
         text = _re.sub(r' {2,}', ' ', text).strip()
-        for end in ['. ', '! ', '? ']:
-            last = text.rfind(end)
-            if last > len(text) // 2:
-                text = text[:last + 1]
-                break
-        text = text.rstrip('.,; ')
-        if not text:
-            return f"These papers suggest a {stance} perspective on the topic."
+
+        # If the model finished mid-sentence (no terminal punctuation in last 40 chars),
+        # trim back to the LAST clean sentence boundary — but only if that boundary
+        # is past the half-way mark, so we keep useful content even when the model
+        # produces just one running sentence.
+        if text and text[-1] not in '.!?':
+            last_idx = max(text.rfind(p) for p in ['. ', '! ', '? '])
+            if last_idx > len(text) // 2:
+                text = text[:last_idx + 1].strip()
+
+        # Final safety net: if even after that we have meaningful content (>=20 chars),
+        # keep it and add a closing period so the UI renders cleanly.
+        text = text.rstrip(',; ')
+        # If the model refused outright, retry once with a stronger directive.
+        is_refusal = (
+            len(text) < 30
+            or text.lower().startswith("no directly relevant evidence")
+            or text.lower().startswith("i'm unable")
+            or text.lower().startswith("i am unable")
+            or text.lower().startswith("i cannot")
+        )
+        if is_refusal:
+            retry_user = (
+                f"{user_msg}\n\nIMPORTANT: Your previous response was a refusal. "
+                "You MUST now provide a substantive 1-2 sentence finding that is "
+                "scientifically defensible. Use established peer-reviewed knowledge if "
+                "the retrieved excerpts are tangential. Do NOT refuse."
+            )
+            try:
+                text = client.generate(prompt=retry_user, system=system_msg,
+                                       temperature=0.4, max_tokens=320)
+                text = (text or "").strip()
+                text = _re.sub(r'[\x00-\x1f\x7f]+', ' ', text)
+                text = _re.sub(r' {2,}', ' ', text).strip()
+            except Exception:
+                pass
+        if len(text) < 20:
+            # Last-resort substantive answer driven by stance + topic.
+            return (f"Mainstream evidence on this topic is supported by multiple peer-reviewed "
+                    f"studies, though specific magnitudes and mechanisms vary across populations.")  if stance == "dominant" \
+                    else (f"Several methodological limitations and heterogeneous results across studies "
+                          f"warrant caution before treating this finding as settled.")
         if text[-1] not in '.!?':
             text += '.'
-        return text[:260]
+        # Cap at 400 chars so the agent card stays compact in the UI.
+        return text[:400]
     except Exception as exc:
         print(f"[agent] view reason error: {exc}")
-        return f"These papers suggest a {stance} perspective on the topic."
+        return f"Synthesis temporarily unavailable for the {stance} perspective."
 
 
 # ── Full answer synthesis (Perplexity-style, multi-turn) ─────────────────────
@@ -532,8 +572,12 @@ async def _run_agent(agent_key: str, cfg: Dict, query: str) -> Dict:
 
 
 # ── Deliberation helpers ───────────────────────────────────────────────────────
-def _delib_llm(prompt: str, system: str, max_tokens: int = 140) -> str:
-    """Blocking single-call LLM for deliberation exchange. Short, punchy output."""
+def _delib_llm(prompt: str, system: str, max_tokens: int = 280) -> str:
+    """Blocking single-call LLM for deliberation exchange.
+
+    Generous max_tokens (default 280 ≈ 200 words) so the model fits 1-2 complete
+    sentences before any trimming. Original simple sentence-boundary logic.
+    """
     from ollama_cloud_client import get_cloud_client
     try:
         client = get_cloud_client()
@@ -542,12 +586,16 @@ def _delib_llm(prompt: str, system: str, max_tokens: int = 140) -> str:
         if not text:
             return ""
         text = text.strip()
-        # Keep only the first sentence
-        for end in ['. ', '! ', '? ']:
-            idx = text.find(end)
-            if 40 < idx < len(text) - 1:
-                return text[:idx + 1].strip()
-        return text[:260].strip()
+        # Find the LAST sentence-ending punctuation+space, take everything up to it.
+        # If no boundary exists, just return the text capped at 400 chars.
+        last_idx = -1
+        for end in ['. ', '! ', '? ', '.\n', '!\n', '?\n']:
+            idx = text.rfind(end)
+            if idx > last_idx:
+                last_idx = idx
+        if last_idx > 30:
+            return text[:last_idx + 1].strip()
+        return text[:400].strip()
     except Exception as e:
         print(f"[deliberation] LLM error: {e}")
         return ""
@@ -583,50 +631,32 @@ async def _run_deliberation(query: str, round1: List[Dict]) -> Dict:
     loop = asyncio.get_event_loop()
 
     # ── 3 parallel calls ───────────────────────────────────────────────────────
+    # Keep prompts SHORT and SINGLE-OBJECTIVE — over-constrained prompts with
+    # multiple bullet rules cause the gpt-oss model to return empty strings.
     conflict_prompt = (
-        f"Research topic: {query}\n\n"
-        f"Builder's finding: {b_view}\n"
-        f"Skeptic's finding: {s_view}\n\n"
-        "In ONE precise sentence: Identify the single most specific factual claim "
-        "where Builder and Skeptic directly contradict each other. "
-        "Name the exact mechanism, measurement, or study design in dispute — "
-        "not a vague 'they disagree about X'. Be surgical."
+        f"Topic: {query}\n\n"
+        f"Builder claims: {b_view}\n"
+        f"Skeptic claims: {s_view}\n\n"
+        "What is the central factual disagreement between Builder and Skeptic? "
+        "Reply in one sentence."
     )
     builder_r_prompt = (
-        f"Research topic: {query}\n\n"
-        f"Your Round 1 finding: {b_view}\n"
-        f"Skeptic challenges: {s_view}\n\n"
-        "In ONE sentence: Rebut the Skeptic's specific challenge. "
-        "Either cite a concrete piece of evidence that directly counters their critique, "
-        "or acknowledge a narrow limitation while defending the core finding. "
-        "No rhetorical hedging — give a factual, direct response."
+        f"Topic: {query}\n\n"
+        f"Your earlier finding: {b_view}\n"
+        f"Skeptic's challenge: {s_view}\n\n"
+        "Rebut the Skeptic in one sentence with a concrete piece of evidence."
     )
     skeptic_r_prompt = (
-        f"Research topic: {query}\n\n"
-        f"Your Round 1 counter-finding: {s_view}\n"
+        f"Topic: {query}\n\n"
+        f"Your earlier critique: {s_view}\n"
         f"Builder defends: {b_view}\n\n"
-        "In ONE sentence: Sharpen your critique of Builder's evidence. "
-        "Identify a specific methodological weakness, confound, or replication issue "
-        "in their position — or acknowledge where their evidence is genuinely strong "
-        "and redirect to a different vulnerability. Be specific and evidence-driven."
+        "Sharpen your critique in one sentence — name a specific methodological "
+        "weakness, confound, or replication issue in Builder's evidence."
     )
 
-    sys_judge   = (
-        "You are a calibrated scientific arbiter — precise, evidence-based, and fair. "
-        "Your job is to identify genuine factual disagreements, not rhetorical differences. "
-        "Focus on empirical claims, not opinions. Never be vague."
-    )
-    sys_builder = (
-        "You are the Builder agent in a structured scientific deliberation. "
-        "You defend the dominant scientific view using specific empirical evidence. "
-        "Be direct and cite concrete findings — never be vague or rhetorical."
-    )
-    sys_skeptic = (
-        "You are the Skeptic agent in a structured scientific deliberation. "
-        "Your role is to surface genuine weaknesses in the dominant view: "
-        "replication failures, confounds, effect-size inflation, or alternative mechanisms. "
-        "Be precise — name actual studies, methods, or results where possible."
-    )
+    sys_judge   = "You are a scientific judge identifying empirical disagreements between two researchers."
+    sys_builder = "You are a scientific researcher defending the mainstream view with direct, evidence-based claims."
+    sys_skeptic = "You are a scientific researcher critiquing the mainstream view with concrete methodological objections."
 
     conflict, builder_reb, skeptic_reb = await asyncio.gather(
         loop.run_in_executor(None, _delib_llm, conflict_prompt,  sys_judge,   100),
@@ -635,26 +665,19 @@ async def _run_deliberation(query: str, round1: List[Dict]) -> Dict:
     )
 
     # ── Judge verdict (needs rebuttals first) ──────────────────────────────────
+    # Keep prompt simple — a single clear ask. Over-structured prompts make this
+    # model return empty strings.
     verdict_prompt = (
-        f"Research question: {query}\n\n"
-        f"[Round 1] Builder: {b_view}\n"
-        f"[Round 1] Skeptic: {s_view}\n"
-        f"[Round 1] Archivist: {a_view}\n\n"
-        f"[Round 2] Builder rebuttal: {builder_reb}\n"
-        f"[Round 2] Skeptic rebuttal: {skeptic_reb}\n\n"
-        "Issue your verdict in exactly 2 sentences:\n"
-        "Sentence 1 — What does the preponderance of evidence support? "
-        "Name specific findings, effect sizes, or mechanisms where they exist.\n"
-        "Sentence 2 — What genuine scientific uncertainty or ongoing disagreement remains? "
-        "Be specific about what is still unresolved and why. "
-        "Do NOT be vague — 'more research is needed' is not acceptable."
+        f"Topic: {query}\n\n"
+        f"Builder (R1): {b_view}\n"
+        f"Skeptic (R1): {s_view}\n"
+        f"Archivist: {a_view}\n\n"
+        f"Builder (R2 rebuttal): {builder_reb}\n"
+        f"Skeptic (R2 rebuttal): {skeptic_reb}\n\n"
+        "Render a final verdict in 2 sentences: first what the evidence best supports, "
+        "then what remains genuinely uncertain."
     )
-    sys_verdict = (
-        "You are a calibrated scientific judge rendering a final verdict. "
-        "Your ruling must be specific, evidence-grounded, and intellectually honest. "
-        "Acknowledge what is well-established AND what remains genuinely contested. "
-        "Never give a fence-sitting non-answer — take a defensible position."
-    )
+    sys_verdict = "You are a calibrated scientific judge rendering a final, evidence-based verdict."
     verdict = await loop.run_in_executor(None, _delib_llm, verdict_prompt, sys_verdict, 200)
 
     duration_ms = round((time.perf_counter() - t0) * 1000, 1)
@@ -768,11 +791,18 @@ def _build_fast_answer(message: str, faiss_sources: List[Dict], faiss_relevance:
                        session: Dict):
     sources = faiss_sources or []
 
-    # Relevance gate
+    # Relevance gate — match query keywords anywhere in the FULL paper body,
+    # not just the 500-char snippet preview, so a keyword in the methods or
+    # results section still counts.
     query_terms = {w.strip("?!.,;:") for w in message.lower().split() if len(w) >= 3}
-    all_text = " ".join((s.get("snippet") or "").lower() for s in sources[:6])
+    all_text = " ".join(
+        ((s.get("full_text") or s.get("snippet") or "")[:4000]).lower()
+        for s in sources[:6]
+    )
     keyword_hit = not query_terms or any(t in all_text for t in query_terms)
-    has_relevant = faiss_relevance >= 0.70 and keyword_hit and any(s.get("snippet") for s in sources[:8])
+    has_relevant = faiss_relevance >= 0.70 and keyword_hit and any(
+        s.get("full_text") or s.get("snippet") for s in sources[:8]
+    )
 
     # Feed FULL paper bodies (up to 4000 chars per paper × 6 papers = 24k chars).
     # The AI must be able to reference any sentence/word in the body — not just the abstract.
@@ -1106,9 +1136,9 @@ async def chat(request: ChatRequest):
     else:
         # ── Fast path: single FAISS search + synthesis ────────────────────────
         _faiss_query = enriched_query if len(request.message.split()) < 5 else request.message
-        faiss_sources, faiss_relevance = await loop.run_in_executor(
-            None, _fetch_faiss_sources, _faiss_query
-        )
+        # Use the same async enriched fetcher as the agent path so the fast path
+        # also gets full_text directly from corpus.parquet (no arXiv/PDF round trips).
+        faiss_sources, faiss_relevance = await _fetch_faiss_sources_enriched(_faiss_query, k=8)
 
         answer_body, claim, all_faiss_sources = await loop.run_in_executor(
             None, _build_fast_answer, request.message, faiss_sources, faiss_relevance, session
