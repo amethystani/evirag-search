@@ -589,7 +589,6 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
       { id: "sources",      icon: "library", label: "Sources", count: totalAccSources },
       { id: "claims",       icon: "doc",     label: "Claims",  count: totalAccClaims  },
       { id: "graph",        icon: "graph",   label: "Graph",   count: r.graph.nodes.length },
-      { id: "views",        icon: "sparkle", label: "Views",   count: r.views.length  },
       ...(hasAgents ? [{ id: "deliberation", icon: "cpu", label: "Agents", count: r.agents.length }] : []),
       { id: "analysis",     icon: "chart",   label: "Analysis",count: null },
     ];
@@ -668,18 +667,6 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-            {drawerTab === "views" && (
-              <div>
-                <div className="callout" onClick={onOpenHypothesis} style={{ cursor: "pointer", marginBottom: 16 }}>
-                  <div className="ico"><Icon name="warn" size={18}/></div>
-                  <div>
-                    <h4>This topic is <em>{disputedLabel}</em>. EVIRAG maps where the corpus disagrees.</h4>
-                    <p>{r.confidenceReasoning || `${r.metrics.claims} extracted claims · ${r.views.length} positions synthesised.`}</p>
-                  </div>
-                </div>
-                {r.views.map((v, i) => <ViewBlock key={i} v={v} idx={i} onClaim={(c) => { setDrawer(null); onOpenClaim(c); }}/>)}
               </div>
             )}
             {drawerTab === "deliberation" && r.agents && (
@@ -845,7 +832,7 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
           <div style={{ flex: 1 }}>
             <div className="q-text serif">{r.query}</div>
             <div className="q-meta">
-              <span className="pill warn" onClick={() => openDrawer("views")}><Icon name="warn" size={11}/> {r.intent.dispute.replace("_", " ")}</span>
+              <span className="pill warn" onClick={() => openDrawer("analysis")}><Icon name="warn" size={11}/> {r.intent.dispute.replace("_", " ")}</span>
               <span className="pill" onClick={() => openDrawer("sources")}><span className="lbl">sources</span> {r.metrics.sources}</span>
               <span className="pill" onClick={() => openDrawer("analysis")}><span className="lbl">conf</span> {r.metrics.confidenceLabel} · {r.metrics.confidence.toFixed(2)}</span>
             </div>
@@ -910,11 +897,6 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
               {r.graph.nodes.length > 0 && (
                 <button className="insight-chip" onClick={() => openDrawer("graph")}>
                   <Icon name="graph" size={11}/> claim graph
-                </button>
-              )}
-              {r.views.length > 0 && (
-                <button className="insight-chip" onClick={() => openDrawer("views")}>
-                  <Icon name="sparkle" size={11}/> {r.views.length} views
                 </button>
               )}
               {hasAgents && (
