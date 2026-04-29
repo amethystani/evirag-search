@@ -508,6 +508,7 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
 
   // First query loading (no prior result) — minimal full-screen state
   if (loading && !result) {
+    const hasPdfPending = !!(pendingOptions && pendingOptions.pdfContext);
     return (
       <div className="results results-chat-first">
         <div className="chat-col">
@@ -515,6 +516,13 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
             <button className="back" onClick={onBack} title="Back"><Icon name="arrow-left" size={16}/></button>
             <div style={{ flex: 1 }}>
               <div className="q-text serif">{pendingQuery || "EVIRAG inquiry"}</div>
+              {hasPdfPending && (
+                <div className="q-meta" style={{ marginTop: 6 }}>
+                  <span className="pill" style={{ gap: 4, display: "inline-flex", alignItems: "center" }}>
+                    <Icon name="doc" size={10}/> PDF context attached
+                  </span>
+                </div>
+              )}
             </div>
           </div>
           <div className="chat-history">
@@ -844,11 +852,23 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
           <div className="chat-history">
             {r.chat.history.map((msg, i) => (
               <div key={i} className={`chat-msg ${msg.role} fade-up`} style={{ animationDelay: `${i * 0.05}s` }}>
-                {msg.role === "user" ? (
+                {msg.role === "user" ? (() => {
+                  // Strip any PDF preamble injected by api.jsx before displaying
+                  const cleanContent = msg.content
+                    .replace(/^\[Uploaded document context[^\]]*\]\n[\s\S]*?\[User question\]\n/, '')
+                    .replace(/^\[Uploaded document context[^\]]*\][\s\S]*?\[User question\]\n/, '');
+                  const hasPdf = msg.content !== cleanContent;
+                  return (
                   <div className="chat-user-bubble">
-                    <strong>Q:</strong> {msg.content}
+                    {hasPdf && (
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                        <Icon name="doc" size={10}/> PDF context
+                      </div>
+                    )}
+                    <strong>Q:</strong> {cleanContent}
                   </div>
-                ) : (
+                  );
+                })() : (
                   <div className="chat-bot-bubble card">
                     {msg.claim && (
                       <div className="evolving-claim" style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--hair)", color: "var(--accent)" }}>
@@ -877,61 +897,66 @@ const Results = ({ result, loading, error, pendingQuery, pendingOptions, tracePl
           </>
         )}
 
-        {/* Insight strip — one tap into any analytical panel. Counts grow with each turn.
-            Deliberation is now a drawer tab (not inline) so the chat column stays clean. */}
-        {(() => {
-          const totalSources = r.chat?.total_sources ?? r.metrics.sources;
-          const totalClaims  = r.chat?.total_claims  ?? r.metrics.claims;
-          const hasAgents    = r.agents && r.agents.length > 0;
-          const hasVerdict   = !!(r.deliberation?.verdict);
-          return (
-            <div className="insight-bar fade-up">
-              <button className="insight-chip" onClick={() => openDrawer("sources")}>
-                <Icon name="library" size={11}/> {totalSources} sources
-              </button>
-              {totalClaims > 0 && (
-                <button className="insight-chip" onClick={() => openDrawer("claims")}>
-                  <Icon name="doc" size={11}/> {totalClaims} claims
+        {/* ── Sticky footer: insight bar + follow-up composer ─────────────────
+             position:sticky + bottom:0 keeps this pinned to the bottom of the
+             viewport as the user scrolls up through chat history, mirroring the
+             ChatGPT / Perplexity UX pattern. */}
+        <div className="chat-footer">
+          {/* Insight strip */}
+          {(() => {
+            const totalSources = r.chat?.total_sources ?? r.metrics.sources;
+            const totalClaims  = r.chat?.total_claims  ?? r.metrics.claims;
+            const hasAgents    = r.agents && r.agents.length > 0;
+            const hasVerdict   = !!(r.deliberation?.verdict);
+            return (
+              <div className="insight-bar fade-up">
+                <button className="insight-chip" onClick={() => openDrawer("sources")}>
+                  <Icon name="library" size={11}/> {totalSources} sources
                 </button>
-              )}
-              {r.graph.nodes.length > 0 && (
-                <button className="insight-chip" onClick={() => openDrawer("graph")}>
-                  <Icon name="graph" size={11}/> claim graph
+                {totalClaims > 0 && (
+                  <button className="insight-chip" onClick={() => openDrawer("claims")}>
+                    <Icon name="doc" size={11}/> {totalClaims} claims
+                  </button>
+                )}
+                {r.graph.nodes.length > 0 && (
+                  <button className="insight-chip" onClick={() => openDrawer("graph")}>
+                    <Icon name="graph" size={11}/> claim graph
+                  </button>
+                )}
+                {hasAgents && (
+                  <button className="insight-chip insight-chip--delib" onClick={() => openDrawer("deliberation")}>
+                    <Icon name="cpu" size={11}/> deliberation{hasVerdict ? " ✓" : ""}
+                  </button>
+                )}
+                <button className="insight-chip insight-chip--conf" onClick={() => openDrawer("analysis")}>
+                  <Icon name="chart" size={11}/> {r.metrics.confidence.toFixed(2)} conf
                 </button>
-              )}
-              {hasAgents && (
-                <button className="insight-chip insight-chip--delib" onClick={() => openDrawer("deliberation")}>
-                  <Icon name="cpu" size={11}/> deliberation{hasVerdict ? " ✓" : ""}
-                </button>
-              )}
-              <button className="insight-chip insight-chip--conf" onClick={() => openDrawer("analysis")}>
-                <Icon name="chart" size={11}/> {r.metrics.confidence.toFixed(2)} conf
-              </button>
-            </div>
-          );
-        })()}
+              </div>
+            );
+          })()}
 
-        {/* Follow-up composer */}
-        <div className="composer fade-up" style={{ marginTop: 12 }}>
-          <input
-            type="text"
-            className="composer-input"
-            style={{ padding: "14px 16px", fontSize: 14 }}
-            placeholder="Ask a follow-up question..."
-            value={followUp}
-            onChange={e => setFollowUp(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === "Enter" && followUp.trim()) { onSubmit(followUp); setFollowUp(""); }
-            }}
-          />
-          <button
-            className="send-btn"
-            style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}
-            onClick={() => { if (followUp.trim()) { onSubmit(followUp); setFollowUp(""); } }}
-            disabled={!followUp.trim()}
-          >
-            <Icon name="arrow-up" size={16} stroke={2}/>
-          </button>
+          {/* Follow-up composer */}
+          <div className="composer fade-up" style={{ marginTop: 8 }}>
+            <input
+              type="text"
+              className="composer-input"
+              style={{ padding: "14px 16px", fontSize: 14 }}
+              placeholder="Ask a follow-up question..."
+              value={followUp}
+              onChange={e => setFollowUp(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter" && followUp.trim()) { onSubmit(followUp); setFollowUp(""); }
+              }}
+            />
+            <button
+              className="send-btn"
+              style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}
+              onClick={() => { if (followUp.trim()) { onSubmit(followUp); setFollowUp(""); } }}
+              disabled={!followUp.trim()}
+            >
+              <Icon name="arrow-up" size={16} stroke={2}/>
+            </button>
+          </div>
         </div>
       </div>
 

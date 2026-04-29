@@ -1148,7 +1148,8 @@ input, textarea { font-family: inherit; color: inherit; }
   .result-side .card { margin-bottom: 0; }
 }
 @media (max-width: 900px) {
-  .app { grid-template-columns: 1fr; }
+  .app { grid-template-columns: 1fr; overflow-x: hidden; }
+  .main { overflow-x: hidden; max-width: 100vw; }
   .app.sb-collapsed .sidebar {
     display: flex;
   }
@@ -1528,9 +1529,25 @@ input, textarea { font-family: inherit; color: inherit; }
 /* ── Chat-first layout ──────────────────────────────────────────────────── */
 .results-chat-first {
   display: block !important; grid-template-columns: unset !important;
-  max-width: 720px !important; padding: 8px 24px 100px !important;
+  /* Bottom padding removed — the sticky .chat-footer provides its own space */
+  max-width: 720px !important; padding: 8px 24px 0 !important;
 }
 .chat-col { display: flex; flex-direction: column; gap: 0; }
+
+/* ── Sticky chat footer (insight-bar + composer) ─────────────────────────
+   Stays pinned to the bottom of the viewport as the user scrolls up through
+   chat history, exactly like ChatGPT / Perplexity.  Works because .main is
+   the scrolling ancestor (overflow-y: auto; height: 100vh).               */
+.chat-footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  padding: 6px 0 24px;
+  z-index: 10;
+  /* Subtle gradient fade above the bar to avoid hard edge on text scroll */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 18%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 18%);
+}
 
 /* ── Insight bar ─────────────────────────────────────────────────────────── */
 .insight-bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 4px; }
@@ -1780,9 +1797,13 @@ input, textarea { font-family: inherit; color: inherit; }
     font-size: 14px;
   }
   .page,
-  .results,
-  .results-chat-first {
+  .results {
     padding: 72px 14px 72px !important;
+    max-width: none !important;
+  }
+  .results-chat-first {
+    /* Bottom padding removed — sticky .chat-footer handles it on mobile too */
+    padding: 72px 14px 0 !important;
     max-width: none !important;
   }
   .page h1 {
@@ -1937,6 +1958,9 @@ input, textarea { font-family: inherit; color: inherit; }
   .results-chat-first .composer {
     margin-left: 0;
     margin-right: 0;
+  }
+  .chat-footer {
+    padding: 4px 0 16px;
   }
   .graph-head .legend {
     flex-wrap: wrap;
