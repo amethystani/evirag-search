@@ -1,0 +1,198 @@
+\begin{thebibliography}{24}
+\providecommand{\natexlab}[1]{#1}
+
+\bibitem[{Bra{\v{z}}inskas et~al.(2020)Bra{\v{z}}inskas, Lapata, and
+  Titov}]{bravzinskas2020few}
+Arthur Bra{\v{z}}inskas, Mirella Lapata, and Ivan Titov. 2020.
+\newblock \href {https://doi.org/10.48550/arXiv.2004.14884} {Few-shot learning
+  for opinion summarization}.
+\newblock \emph{arXiv preprint arXiv:2004.14884}.
+
+\bibitem[{Carbonell and Goldstein(1998)}]{carbonell1998mmr}
+Jaime Carbonell and Jade Goldstein. 1998.
+\newblock \href {https://doi.org/10.1145/290941.291025} {The use of {MMR},
+  diversity-based reranking for reordering documents and producing summaries}.
+\newblock In \emph{Proceedings of the 21st Annual International ACM SIGIR
+  Conference on Research and Development in Information Retrieval}, pages
+  335--336.
+
+\bibitem[{Cohen(1960)}]{cohen1960coefficient}
+Jacob Cohen. 1960.
+\newblock \href {https://doi.org/10.1177/001316446002000104} {A coefficient of
+  agreement for nominal scales}.
+\newblock \emph{Educational and Psychological Measurement}, 20(1):37--46.
+
+\bibitem[{Cooper et~al.(2006)Cooper, Robinson, and Patall}]{cooper2006homework}
+Harris Cooper, Jorgianne~Civey Robinson, and Erika~A. Patall. 2006.
+\newblock \href {https://doi.org/10.3102/00346543076001001} {Does homework
+  improve academic achievement? {A} synthesis of research, 1987--2003}.
+\newblock \emph{Review of Educational Research}, 76(1):1--62.
+
+\bibitem[{Gao et~al.(2023)Gao, Dai, Pasupat, Chen, Chaganty, Fan, Zhao, Lao,
+  Lee, Juan, and Guu}]{gao2023rarr}
+Luyu Gao, Zhuyun Dai, Panupong Pasupat, Anthony Chen, Arun~Tejasvi Chaganty,
+  Yicheng Fan, Vincent~Y. Zhao, Ni~Lao, Hongrae Lee, Da-Cheng Juan, and Kelvin
+  Guu. 2023.
+\newblock \href {https://doi.org/10.18653/v1/2023.acl-long.910} {{RARR}:
+  Researching and revising what language models say, using language models}.
+\newblock In \emph{Proceedings of the 61st Annual Meeting of the Association
+  for Computational Linguistics (Volume 1: Long Papers)}, pages 16310--16330.
+
+\bibitem[{Hayashi et~al.(2021)Hayashi, Budania, Wang, Ackerson, Neervannan, and
+  Neubig}]{hayashi2021wikiasp}
+Hiroaki Hayashi, Prashant Budania, Peng Wang, Chris Ackerson, Raj Neervannan,
+  and Graham Neubig. 2021.
+\newblock \href {https://doi.org/10.1162/tacl_a_00362} {{WikiAsp}: A dataset
+  for multi-domain aspect-based summarization}.
+\newblock In \emph{Transactions of the Association for Computational
+  Linguistics}, volume~9, pages 211--225.
+
+\bibitem[{Kadavath et~al.(2022)Kadavath, Conerly, Askell, Henighan, Drain,
+  Perez, Schiefer, Hatfield-Dodds, DasSarma, Tran-Johnson, Johnston, El-Showk,
+  Jones, Elhage, Hume, Chen, Bai, Bowman, Fort, Ganguli, Hernandez, Jacobson,
+  Kernion, Kravec, Lovitt, Ndousse, Olsson, Ringer, Amodei, Amodei, Clark,
+  McCandlish, Olah, and Kaplan}]{kadavath2022language}
+Saurav Kadavath, Tom Conerly, Amanda Askell, Tom Henighan, Dawn Drain, Ethan
+  Perez, Nicholas Schiefer, Zac Hatfield-Dodds, Nova DasSarma, Eli
+  Tran-Johnson, Scott Johnston, Sheer El-Showk, Andy Jones, Nelson Elhage,
+  Tristan Hume, Anna Chen, Yuntao Bai, Sam Bowman, Stanislav Fort, and 15
+  others. 2022.
+\newblock \href {https://doi.org/10.48550/arXiv.2207.05221} {Language models
+  (mostly) know what they know}.
+\newblock \emph{arXiv preprint arXiv:2207.05221}.
+
+\bibitem[{Krippendorff(2011)}]{krippendorff2011computing}
+Klaus Krippendorff. 2011.
+\newblock Computing {K}rippendorff's alpha-reliability.
+\newblock \emph{Departmental Papers (ASC)}, page~43.
+
+\bibitem[{Lala et~al.(2023)Lala, O'Donoghue, Shtedritski, Cox, Rodriques, and
+  White}]{lala2023paperqa}
+Jakub Lala, Odhran O'Donoghue, Aleksandr Shtedritski, Sam Cox, Samuel~G.
+  Rodriques, and Andrew~D. White. 2023.
+\newblock \href {https://doi.org/10.48550/arXiv.2312.07559} {{PaperQA}:
+  Retrieval-augmented generative agent for scientific research}.
+\newblock \emph{arXiv preprint arXiv:2312.07559}.
+
+\bibitem[{Lewis et~al.(2020)Lewis, Perez, Piktus, Petroni, Karpukhin, Goyal,
+  K{\"u}ttler, Lewis, Yih, Rockt{\"a}schel, Riedel, and Kiela}]{lewis2020rag}
+Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir
+  Karpukhin, Naman Goyal, Heinrich K{\"u}ttler, Mike Lewis, Wen-tau Yih, Tim
+  Rockt{\"a}schel, Sebastian Riedel, and Douwe Kiela. 2020.
+\newblock Retrieval-augmented generation for knowledge-intensive {NLP} tasks.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~33, pages 9459--9474.
+
+\bibitem[{Longino(2002)}]{longino2002science}
+Helen~E. Longino. 2002.
+\newblock \emph{The Fate of Knowledge}.
+\newblock Princeton University Press, Princeton, NJ.
+
+\bibitem[{Malaviya et~al.(2024)Malaviya, Lee, Chen, Sieber, Yatskar, and
+  Roth}]{malaviya2024expertqa}
+Chaitanya Malaviya, Subin Lee, Sihao Chen, Elizabeth Sieber, Mark Yatskar, and
+  Dan Roth. 2024.
+\newblock \href {https://doi.org/10.18653/v1/2024.naacl-long.167} {{ExpertQA}:
+  Expert-curated questions and attributed answers}.
+\newblock In \emph{Proceedings of the 2024 Conference of the North American
+  Chapter of the Association for Computational Linguistics: Human Language
+  Technologies (Volume 1: Long Papers)}, pages 3025--3045.
+
+\bibitem[{Masalimova et~al.(2023)Masalimova, Kuznetsova, Panov, Svintsova,
+  Orekhovskaya, and Shevchenko}]{masalimova2023science}
+Alfiya~R. Masalimova, Olga~A. Kuznetsova, Evgeny~G. Panov, Marina~N. Svintsova,
+  Natalia~A. Orekhovskaya, and Olga~V. Shevchenko. 2023.
+\newblock \href {https://doi.org/10.29333/ejmste/13058} {Exploring the impact
+  of homework assignments on achievement and attitudes in science education}.
+\newblock \emph{EURASIA Journal of Mathematics, Science and Technology
+  Education}, 19(4):em2246.
+
+\bibitem[{Min et~al.(2023)Min, Krishna, Lyu, Lewis, Yih, Koh, Iyyer,
+  Zettlemoyer, and Hajishirzi}]{min2023factscore}
+Sewon Min, Kalpesh Krishna, Xinxi Lyu, Mike Lewis, Wen-tau Yih, Pang~Wei Koh,
+  Mohit Iyyer, Luke Zettlemoyer, and Hannaneh Hajishirzi. 2023.
+\newblock \href {https://doi.org/10.18653/v1/2023.emnlp-main.741} {{FActScore}:
+  Fine-grained atomic evaluation of factual precision in long form text
+  generation}.
+\newblock In \emph{Proceedings of the 2023 Conference on Empirical Methods in
+  Natural Language Processing}, pages 12076--12100.
+
+\bibitem[{Reimers and Gurevych(2019)}]{reimers2019sentence}
+Nils Reimers and Iryna Gurevych. 2019.
+\newblock \href {https://doi.org/10.18653/v1/D19-1410} {Sentence-{BERT}:
+  Sentence embeddings using {S}iamese {BERT}-networks}.
+\newblock In \emph{Proceedings of the 2019 Conference on Empirical Methods in
+  Natural Language Processing and the 9th International Joint Conference on
+  Natural Language Processing (EMNLP-IJCNLP)}, pages 3982--3992.
+
+\bibitem[{Ru et~al.(2024)Ru, Qiu, Qian, Hou, Liu, Shi, Xu, Yu, Xu, Jin, Yu,
+  Chang, Zhu, Ghamari, Liu, and Shen}]{ru2024ragchecker}
+Dongyu Ru, Lin Qiu, Xiangkun Qian, Tianhao Hou, Shuaichen Liu, Jiewei Shi, Peng
+  Xu, Yue Yu, Cheng Xu, Di~Jin, Yixin Yu, Ping Chang, Fei Zhu, Seyda Ghamari,
+  Xipeng Liu, and Zhiyuan Shen. 2024.
+\newblock {RAGChecker}: A fine-grained framework for diagnosing
+  retrieval-augmented generation.
+\newblock In \emph{Advances in Neural Information Processing Systems},
+  volume~37.
+
+\bibitem[{Scheb(2023)}]{scheb2023hurt}
+Ryan Scheb. 2023.
+\newblock \href {https://doi.org/10.15365/joce.2602072023} {Does homework work
+  or hurt? {A} study on the effects of homework on mental health and academic
+  performance}.
+\newblock \emph{Journal of Catholic Education}, 26(2):130--143.
+
+\bibitem[{Solomon(2001)}]{solomon2001social}
+Miriam Solomon. 2001.
+\newblock \emph{Social Empiricism}.
+\newblock MIT Press, Cambridge, MA.
+
+\bibitem[{Traag and Bruggeman(2009)}]{traag2009community}
+Vincent~A. Traag and Jeroen Bruggeman. 2009.
+\newblock \href {https://doi.org/10.1103/PhysRevE.80.036115} {Narrow scope for
+  resolution-limit-free community detection}.
+\newblock \emph{Physical Review E}, 80(3):036115.
+
+\bibitem[{Wadden et~al.(2020)Wadden, Lin, Lo, Wang, van Zuylen, Cohan, and
+  Hajishirzi}]{wadden2020scifact}
+David Wadden, Shanchuan Lin, Kyle Lo, Lucy~Lu Wang, Madeleine van Zuylen, Arman
+  Cohan, and Hannaneh Hajishirzi. 2020.
+\newblock \href {https://doi.org/10.18653/v1/2020.emnlp-main.609} {Fact or
+  fiction: Verifying scientific claims}.
+\newblock In \emph{Proceedings of the 2020 Conference on Empirical Methods in
+  Natural Language Processing (EMNLP)}, pages 7534--7550.
+
+\bibitem[{Wadden et~al.(2022)Wadden, Lo, Kuehl, Cohan, Beltagy, Wang, and
+  Hajishirzi}]{wadden2022scifactopen}
+David Wadden, Kyle Lo, Bailey Kuehl, Arman Cohan, Iz~Beltagy, Lucy~Lu Wang, and
+  Hannaneh Hajishirzi. 2022.
+\newblock \href {https://doi.org/10.18653/v1/2022.findings-emnlp.347}
+  {{SciFact-Open}: Towards open-domain scientific claim verification}.
+\newblock In \emph{Findings of the Association for Computational Linguistics:
+  EMNLP 2022}, pages 4719--4734.
+
+\bibitem[{Wang et~al.(2025)Wang, Ivanova, Glickman, Brahman, Choi, and
+  Swayamdipta}]{wang2025conflicting}
+Han Wang, Archiki Ivanova, Elias Glickman, Faeze Brahman, Yejin Choi, and
+  Swabha Swayamdipta. 2025.
+\newblock \href {https://doi.org/10.48550/arXiv.2504.13079}
+  {Retrieval-augmented generation with conflicting evidence}.
+\newblock \emph{arXiv preprint arXiv:2504.13079}.
+
+\bibitem[{Xiong et~al.(2024)Xiong, Hu, Lu, Li, Fu, He, and
+  Hooi}]{xiong2024llms}
+Miao Xiong, Zhiyuan Hu, Xinyang Lu, Yifei Li, Jie Fu, Junxian He, and Bryan
+  Hooi. 2024.
+\newblock Can {LLMs} express their uncertainty? an empirical evaluation of
+  confidence elicitation in large language models.
+\newblock In \emph{The Twelfth International Conference on Learning
+  Representations}.
+
+\bibitem[{Zhong et~al.(2023)Zhong, Shi, Yih, and Zettlemoyer}]{zhong2023romqa}
+Victor Zhong, Weijia Shi, Wen-tau Yih, and Luke Zettlemoyer. 2023.
+\newblock \href {https://doi.org/10.18653/v1/2023.findings-emnlp.470} {{RoMQA}:
+  A benchmark for robust, multi-evidence, multi-answer question answering}.
+\newblock In \emph{Findings of the Association for Computational Linguistics:
+  EMNLP 2023}, pages 7055--7067.
+
+\end{thebibliography}

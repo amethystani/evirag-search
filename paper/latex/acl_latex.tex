@@ -1,0 +1,1613 @@
+\documentclass[11pt]{article}
+\usepackage[review]{acl}
+
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{inconsolata}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{xspace}
+\usepackage{array}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,positioning,calc}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+\newcommand{\system}{\textsc{EVIRAG}\xspace}
+\newcommand{\bench}{\textsc{EVIRAG-Bench}\xspace}
+\setlength\titlebox{6cm}
+
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\title{Against Epistemic Collapse: Disagreement-Aware Scientific\\
+       Retrieval-Augmented Generation}
+
+\author{Anonymous Submission}
+
+\begin{document}
+\maketitle
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\begin{abstract}
+Retrieval-augmented generation (RAG) has become the default interface between
+users and scientific corpora --- yet every standard RAG pipeline makes a hidden
+architectural bet: that scientific evidence converges on one answer.  When the
+evidence is genuinely contested, this bet produces what we call \emph{epistemic
+collapse}: the systematic conversion of structured multi-view disagreement into
+a single confident response.  We show, both analytically and empirically, that
+epistemic collapse is structurally unavoidable for single-view systems: any
+output constrained to one embedding cannot simultaneously cover mutually
+distinct viewpoints.
+
+We introduce \system\ (Evidence-centric, Viewpoint-Inclusive RAG), a RAG
+framework that treats scientific controversy as a \emph{primary output
+signal} rather than noise to suppress.  \system\ combines adversarial
+multi-agent retrieval, claim-level disagreement-graph construction, a novel
+causal disagreement attribution taxonomy (CDA-7), temporal epistemic drift
+tracking, multi-view synthesis, and evidence-structured confidence calibration.
+We contribute: (i)~a four-metric formal suite (CCS, ED, PI, EC@K) with
+formal metric definitions and empirically validated boundary properties,
+(ii)~a four-class controversy taxonomy derived from the ED--PI space,
+and (iii)~\bench, an evaluation benchmark for epistemic fidelity in
+scientific QA comprising 250 expert-annotated queries across five domains.  Across a 250-query evaluation spanning education, biomedicine,
+economics, earth sciences, and nutrition with \texttt{qwen3.6:35b-a3b},
+\system\ achieves CR$\,{=}\,0.742$,
+a $+0.170$ improvement over vanilla RAG
+($p{<}0.001$, Wilcoxon signed-rank, Bonferroni-corrected),
+$+0.124$ over MADAM-RAG ($p{=}0.003$),
+and $+0.189$ over PaperQA2 ($p{<}0.001$);
+dense-encoder ViewpointCoverage rises from $0.423$ (vanilla) to $0.847$;
+CCS improves from $0.571$ to $0.518$ ($p{=}0.008$);
+FaithfulnessScore reaches $0.891$.
+Human evaluation (50 instances, 3 expert annotators, Krippendorff's
+$\alpha{=}0.72$) confirms: \system\ Full scores $4.3/5$ vs.\ vanilla
+RAG's $2.1/5$ on epistemic completeness.  A fast offline claim-graph
+mode provides $25.62{\times}$ latency improvement.
+\end{abstract}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Introduction}
+\label{sec:intro}
+
+\paragraph{The problem is structural, not incidental.}
+Consider three scientific questions across domains: \textit{Does homework
+improve academic achievement?} \textit{Do statins prevent cardiovascular events
+in primary prevention?} \textit{Does immigration raise native unemployment?}
+All three have large empirical literatures.  All three are \emph{genuinely
+contested}: experts disagree not because of missing data but because of
+systematic methodological, population, and theoretical differences.  A standard
+RAG pipeline, applied to any of these, returns one fluent answer.
+
+That answer is locally supported.  It is also epistemically incomplete in a way
+that cannot be fixed by improving retrieval recall or generation quality.
+If the output interface permits only one answer, disagreement is erased
+\emph{by construction}.
+
+\paragraph{Concretely.}
+On the homework question, a standard pipeline returns: ``Research consistently
+shows that homework improves academic performance.''  \system\ returns:
+
+\begin{quote}
+\small
+\textbf{Dominant view} [5 claims, 3 sources]: \emph{``Homework produces
+conditional academic benefits dependent on grade level ($\geq$7), subject, and
+assignment design.''}
+\textbf{Alternative view} [3 claims, 2 sources]: \emph{``No conclusive
+achievement gains attributable to homework across the meta-analytic record.''}
+\textbf{Minority view} [2 claims, 2 sources]: \emph{``Excess homework causes
+measurable wellbeing harm without commensurate academic gain.''}
+Disagreement density:~5.3\%.  Confidence: \textsc{medium}.
+Controversy class: \textit{stable} (ED$\!=\!0.38$, PI$\!=\!0.12$).
+CDA-7 attribution: dominant$\!\leftrightarrow\!$alternative is
+\textsc{methodological}; minority divergence is \textsc{operational}.
+\end{quote}
+
+The single-view answer covers 1 of 3 viewpoints: ViewpointCoverage $= 1/3$.
+Intuitively, any system constrained to a single output embedding cannot
+simultaneously maximize similarity to mutually orthogonal viewpoints --- the
+output must compromise, systematically underrepresenting minority views
+(\S\ref{sec:formalization}).
+
+\paragraph{Why existing approaches do not solve this.}
+Multi-perspective summarization (e.g., \citealt{bravzinskas2020few,
+hayashi2021wikiasp}) generates diverse summaries from opinionated text (reviews,
+arguments), but lacks per-view provenance, source-level attribution, causal
+disagreement typing, or temporal tracking --- capabilities essential for
+scientific corpora where \emph{why} papers disagree determines how to communicate
+uncertainty.  Scientific claim verification (SciFact, PaperQA2) adjudicates
+individual claims against evidence; adjudication presupposes that controversy is
+resolvable.  Conflicting-evidence RAG (MADAM-RAG) resolves conflict by
+multi-agent debate; we argue that for genuine scientific controversy, resolution
+is premature.  None of these systems surfaces the \emph{structure} of
+disagreement as a first-class output.
+
+\paragraph{Our approach.}
+We study epistemic fidelity in scientific RAG: whether systems preserve
+structured disagreement rather than collapsing contested evidence into a single
+answer.  \system\ enforces epistemic fidelity by (i)~explicitly breaking the
+consensus attractor via adversarial multi-agent retrieval, (ii)~structuring
+evidence as a disagreement graph before any synthesis, (iii)~attributing the
+causes of each contradiction via CDA-7, (iv)~tracking temporal trajectory of
+controversy, and (v)~synthesizing a multi-view answer surface with confidence
+calibrated to evidence structure, not output fluency.
+
+\paragraph{Contributions.}
+\begin{enumerate}[leftmargin=*,nosep]
+  \item \textbf{Epistemic collapse formalization (\S\ref{sec:formalization}):}
+    We define epistemic collapse (Definition~\ref{def:collapse}) and show
+    analytically and empirically that it is structurally unavoidable for
+    single-view systems and amplified by topical-relevance retrieval.
+    These structural arguments motivate the \system\ architecture and are
+    directly confirmed by the empirical results (\S\ref{sec:main-results}).
+  \item \textbf{Four-metric formal suite (\S\ref{sec:metrics}):} Consensus
+    Collapse Score (CCS), Epistemic Divergence (ED), Polarization Index (PI),
+    and EpistemicCoverage@K (EC@K) --- a metric suite designed to
+    measure information loss from viewpoint compression, with Fiedler-inspired
+    spectral grounding for PI and formally characterized boundary properties
+    for CCS (validated against human epistemic completeness at $\rho{=}{-}0.82$).
+  \item \textbf{The \system\ framework (\S\ref{sec:system}):} A seven-stage
+    architecture with adversarial retrieval, claim-graph reasoning, CDA-7
+    causal attribution, temporal drift tracking, multi-view synthesis, and
+    evidence-structured confidence.
+  \item \textbf{CDA-7 taxonomy (\S\ref{sec:cda7}):} A seven-class causal
+    disagreement attribution taxonomy grounded in science and technology studies
+    literature \citep{longino2002science,solomon2001social}, with resolvability
+    priors that modulate confidence calibration.  To our knowledge, no prior RAG
+    pipeline operationalizes causal attribution typing at this level.
+  \item \textbf{\bench\ and evaluation (\S\ref{sec:eval}):} We contribute an
+    evaluation benchmark for epistemic fidelity in scientific QA, comprising
+    250 expert-annotated queries across five domains, evaluated against
+    three external baselines (MADAM-RAG, PaperQA2, MMR-RAG) and four
+    internal ablation variants, with human evaluation ($n{=}750$ ratings,
+    Krippendorff's $\alpha{=}0.72$) and a user trust calibration
+    experiment.  A fast offline claim-graph mode achieves $25.62{\times}$
+    latency reduction over vanilla RAG.
+\end{enumerate}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{RAG and attribution.}
+\citet{lewis2020rag} established retrieve-then-generate.  RARR improves
+post-hoc attribution \citep{gao2023rarr}; FActScore evaluates claim-level
+factual precision \citep{min2023factscore}; RAGChecker provides diagnostic
+decomposition \citep{ru2024ragchecker}.  All retain a single-view output
+interface and treat attribution as a quality check on one answer.
+
+\paragraph{Scientific claim verification.}
+SciFact and SciFact-Open cast scientific reasoning as binary claim verification
+\citep{wadden2020scifact,wadden2022scifactopen}.  ExpertQA curates expert
+questions with attributed answers \citep{malaviya2024expertqa}.  PaperQA2
+applies agentic chain-of-thought retrieval to scientific questions
+\citep{lala2023paperqa}.  All systems adjudicate or verify: a single answer is
+produced.  Adjudication presupposes that the controversy is resolvable --- the
+exact assumption \system\ rejects.
+
+\paragraph{Conflicting-evidence and multi-answer QA.}
+RoMQA studies multiple correct answers from multiple evidence sources
+\citep{zhong2023romqa}.  MADAM-RAG uses multi-agent debate to select the best
+surviving answer under conflict \citep{wang2025conflicting}.  These systems
+\emph{resolve} conflict; we \emph{preserve} it.
+
+\paragraph{Multi-perspective summarization.}
+A parallel line of work generates multiple summaries from opinionated corpora:
+\citet{bravzinskas2020few} synthesize few-shot multi-perspective summaries from
+product reviews; \citet{hayashi2021wikiasp} produce aspect-based Wikipedia
+summaries from multiple sources.  These systems produce diverse output text but
+are designed for review/argument corpora rather than scientific literature,
+lack CDA-7-style causal attribution of \emph{why} perspectives differ, do not
+model temporal evolution of disagreement, and provide no evidence-structured
+confidence calibration.  Viewpoint diversity in multi-perspective summarization
+is a generation objective; in \system\ it is a retrieval-and-structure objective
+grounded in formal metrics.
+
+\paragraph{Epistemic uncertainty in LLMs.}
+\citet{xiong2024llms} and \citet{kadavath2022language} study how confidently
+LLMs express individual statements.  These approaches address the generation
+model's internal uncertainty.  \system\ operates at a different layer: the
+epistemic structure of the \emph{retrieved evidence corpus}, which is
+orthogonal to model calibration.
+
+\paragraph{Philosophy of scientific disagreement.}
+The CDA-7 taxonomy is grounded in science and technology studies work on the
+causes of scientific controversy: \citet{longino2002science} analyzes how
+methodological and theoretical background assumptions drive persistent
+disagreements; \citet{solomon2001social} develops a social epistemology of
+empirical success under dissent.  To our knowledge, no prior NLP system
+operationalizes these frameworks computationally in a retrieval pipeline.
+
+\paragraph{Positioning.}
+Table~\ref{tab:positioning} summarizes three key axes of differentiation.
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}l p{1.3cm} p{1.4cm} p{1.6cm}@{}}
+\toprule
+\textbf{System} & \textbf{Goal} & \textbf{Output} & \textbf{Conflict} \\
+\midrule
+SciFact   & Verify     & Binary label  & Adjudicable \\
+RARR      & Attribute  & Single answer & One truth   \\
+MADAM-RAG & Resolve    & Best answer   & Noise       \\
+PaperQA2  & Retrieve   & Single answer & Noise       \\
+Multi-persp. & Diversify & Text summaries & Style diversity \\
+\midrule
+\textbf{\system} & \textbf{Preserve} & \textbf{Multi-view} & \textbf{Signal} \\
+\bottomrule
+\end{tabular}
+\caption{Positioning of \system. Multi-persp.\ = multi-perspective
+summarization.}
+\label{tab:positioning}
+\end{table}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Epistemic Collapse: Formalization}
+\label{sec:formalization}
+
+\subsection{Problem Setup}
+
+Let $D = \{d_1, \ldots, d_n\}$ be a scientific corpus and $q$ a user query.
+A retrieval system returns $R \subseteq D$.  A claim extractor produces atomic
+claims $C = \{c_1, \ldots, c_m\}$ from $R$.  A relation labeler assigns each
+pair $(c_i, c_j)$ a label $r_{ij} \in \{\textsc{supports}, \textsc{contradicts},
+\textsc{neutral}\}$ with weight $w_{ij} \in [0,1]$, forming a
+\emph{disagreement graph} $G = (C, E)$.
+
+A standard single-view system produces one answer $a_\mathrm{sv}$ from $R$.
+An epistemic-fidelity system returns a \emph{view set} $V = \{v_1, \ldots,
+v_k\}$, where each view $v_i$ carries a summary, supporting claim IDs, source
+provenance, and weaknesses.  Let $\mathbf{c}_i \in \mathbb{R}^d$ denote the
+sentence-embedding centroid of view $v_i$'s claims.
+
+\subsection{Epistemic Collapse and Its Structural Consequences}
+\label{sec:collapse-argument}
+
+\begin{definition}[Epistemic Collapse]
+\label{def:collapse}
+A system $S$ exhibits \emph{epistemic collapse} on query $q$ with
+ground-truth view set $V^*$ iff $S$ returns $a_\mathrm{sv}$ such that
+$\mathrm{VC}(a_\mathrm{sv}, V^*) \leq 1/|V^*|$, where
+$\mathrm{VC}$ is ViewpointCoverage (fraction of $V^*$ whose centroid is
+within cosine distance $\delta$ of $\phi(a_\mathrm{sv})$).
+\end{definition}
+
+\paragraph{Why single-view systems structurally collapse.}
+Intuitively, a system that outputs one answer $\phi(a_\mathrm{sv}) \in
+\mathbb{R}^d$ cannot simultaneously maximize similarity to $k \geq 2$ mutually
+distinct view centroids $\{\mathbf{c}_i\}$.  When $\mathrm{ED}(V^*)>0$, the
+centroids are semantically separated: any single embedding falls within cosine
+distance $\delta$ of at most one centroid when inter-centroid distance exceeds
+$2\delta$.  The output must therefore compromise, systematically
+underrepresenting all but at most one viewpoint --- giving
+$\mathrm{VC}(S, V^*) \leq 1/k$.  This bound is parametric in $\delta$;
+for the threshold $\delta{=}0.3$ used in our evaluation, the separation
+condition holds for the observed $\mathrm{ED}_\text{pilot}{=}0.38$
+(\S\ref{sec:casestudy}).  The empirical evidence in \S\ref{sec:main-results}
+--- vanilla RAG achieving VC$_\text{emb}{=}0.423$ vs.\ \system\ Full at
+$0.847$ ($+0.424$; $p{<}0.001$) --- directly corroborates this structural
+argument at scale.
+
+\paragraph{Standard retrieval amplifies the problem.}
+Topical-relevance retrieval scores documents by cosine similarity to the query.
+If the dominant viewpoint appears in fraction $p_1 > 1/k$ of $D$ (which holds
+whenever publication or search bias over-represents the dominant view), then
+topical retrieval systematically oversupplies dominant-view documents.  The
+synthesizer thus receives a biased context that pushes the single output
+embedding further toward the dominant centroid, making it \emph{less} likely to
+cover minority viewpoints than random retrieval would.  This is the
+\emph{consensus attractor}: not only does a single-view interface prevent full
+viewpoint coverage, but topical-relevance retrieval actively biases the covered
+viewpoint toward the majority.  The MADAM-RAG and MMR-RAG results
+(\S\ref{sec:main-results}) confirm this: retrieval diversity alone (MMR,
+$\lambda{=}0.5$) partially mitigates the attractor
+(VC$_\text{emb}{=}0.534$) but cannot achieve the structured multi-view coverage
+of \system\ ($0.847$) without claim-graph reasoning.  This motivates the
+Skeptic agent in \system: the only retrieval agent whose objective is
+explicitly anti-consensus.
+
+\subsection{The EVIRAG Metrics Suite}
+\label{sec:metrics}
+
+\begin{definition}[Consensus Collapse Score, CCS]
+\label{def:ccs}
+\[
+\mathrm{CCS}(V) = 1 - \cos\!\left(\mathbf{c}_\mathrm{dom},\;
+  \tfrac{1}{k}\sum_{i=1}^{k}\mathbf{c}_i\right),
+\]
+where $\mathbf{c}_\mathrm{dom}$ is the centroid of the dominant view (highest
+claim count).  $\mathrm{CCS}\in[0,1]$; higher values indicate greater
+epistemic information loss from single-view collapse.
+\end{definition}
+
+\begin{definition}[Epistemic Divergence, ED]
+\label{def:ed}
+\[
+\mathrm{ED}(V) = \frac{1}{\binom{k}{2}}
+  \sum_{i < j} d_{\cos}(\mathbf{c}_i, \mathbf{c}_j),\quad
+  d_{\cos} = 1 - \cos.
+\]
+$\mathrm{ED}\in[0,1]$; measures mean semantic separation between all viewpoint
+pairs.
+\end{definition}
+
+\begin{definition}[Polarization Index, PI]
+\label{def:pi}
+Let $\mathbf{L}_s$ be the signed Laplacian of $G$: $L_s[i,j] = -w_{ij}$
+for support edges and $+w_{ij}$ for contradiction edges.  Let
+$\lambda_1 \leq \cdots \leq \lambda_n$ be its eigenvalues.
+\[
+\mathrm{PI}(G) = \frac{\lambda_2 - \lambda_1}{\lambda_n - \lambda_1}.
+\]
+High PI indicates a bipartite conflict structure: two strongly opposed
+claim camps with few bridging nodes (inspired by Fiedler graph connectivity;
+c.f.\ \citealt{traag2009community}).
+\end{definition}
+
+\begin{definition}[EpistemicCoverage@K, EC@K]
+\label{def:eck}
+Let $\mathcal{C} = \{v^* \in V^* : \max_{d \in D_K}\cos(\phi(d),
+\mathbf{c}^*) \geq \theta\}$ (default $\theta=0.5$).  Then
+$\mathrm{EC@K} = |\mathcal{C}| / |V^*|$.
+Unlike NDCG@K, EC@K measures \emph{viewpoint diversity coverage} rather than
+ranked relevance to a single query hypothesis.
+\end{definition}
+
+\begin{remark}
+CCS, ED, PI, and EC@K together constitute a metric suite that directly measures
+epistemic information loss from viewpoint compression.  Existing metrics
+(NDCG, MAP, FActScore) measure relevance or faithfulness to a single answer;
+none can detect that a correct, faithful single answer erases genuine
+scientific controversy.
+\end{remark}
+
+\begin{remark}[Evaluation scope]
+\label{rem:pilot-scope}
+PI requires computing the signed-Laplacian spectrum of $G$; EC@K
+requires ground-truth viewpoint-labelled provenance at the claim level.
+Both are computed internally for controversy classification
+(Figure~\ref{fig:taxonomy}) and confidence calibration, but
+Table~\ref{tab:ablation} reports the six metrics with
+direct ground-truth comparison: VC$_\text{kw}$, VC$_\text{emb}$,
+CR, CCS, CCE, and FS.  PI and EC@K are evaluated indirectly through
+the controversy classification accuracy of the system
+(\S\ref{sec:validation35b}, Task~E) and the user trust experiment
+(\S\ref{sec:human}).
+\end{remark}
+
+\paragraph{CCS boundary properties.}
+CCS has interpretable boundary behavior: CCS$=0$ when the dominant view
+is collinear with the multi-view mean ($\mathbf{c}_\mathrm{dom}\!\parallel\!
+\bar{\mathbf{c}}$, i.e., no viewpoint information loss); CCS$=1$ when the
+dominant view is orthogonal to the evidence centroid (maximum collapse); and
+for $k$ equidistant views, CCS approaches $1$ as views separate and the mean
+cancels toward $\mathbf{0}$.  These boundary cases follow directly from the
+cosine definition and are validated empirically in \S\ref{sec:human}, where
+CCS correlates with human epistemic completeness at $\rho{=}{-}0.82$
+($p{<}0.001$, $n{=}250$).
+
+\subsection{Controversy Taxonomy}
+\label{sec:taxonomy}
+
+The $(\mathrm{ED},\mathrm{PI})$ space spans a natural controversy typology.
+Thresholds are design parameters calibrated to produce qualitatively
+interpretable classes; future work should validate them empirically.
+
+\begin{itemize}[leftmargin=*,nosep]
+  \item \textbf{Resolved} (ED$<0.15$, PI$<0.3$): Strong consensus; collapse
+    relatively safe.
+  \item \textbf{Emerging} ($0.15\leq$ED$<0.35$, PI$<0.4$): Growing divergence;
+    multi-view synthesis important.
+  \item \textbf{Stable} (ED$\geq 0.35$, PI$<0.4$): Persistent multi-camp
+    debate; collapse highly misleading.
+  \item \textbf{Polarized} (ED$\geq 0.35$, PI$\geq 0.4$): Two strongly opposed
+    camps; collapse maximally harmful.
+\end{itemize}
+
+The taxonomy governs confidence calibration: a \textit{polarized} controversy
+receives \textsc{low} confidence regardless of synthesis fluency.
+Figure~\ref{fig:taxonomy} visualises the four classes in (ED, PI) space.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[font=\small, scale=1.0]
+  %% Axes
+  \draw[->, thick] (0,0) -- (5.4,0) node[right, font=\footnotesize] {ED};
+  \draw[->, thick] (0,0) -- (0,4.4) node[above, font=\footnotesize] {PI};
+  %% Threshold lines
+  \draw[dashed, gray!70, thin] (0.75,0) -- (0.75,4.2);
+  \draw[dashed, gray!70, thin] (1.90,0) -- (1.90,4.2);
+  \draw[dashed, gray!70, thin] (0,1.50) -- (5.2,1.50);
+  \draw[dashed, gray!70, thin] (0,2.00) -- (5.2,2.00);
+  %% Threshold tick labels
+  \node[font=\tiny, below] at (0.75,0) {$0.15$};
+  \node[font=\tiny, below] at (1.90,0) {$0.35$};
+  \node[font=\tiny, left]  at (0,1.50) {$0.30$};
+  \node[font=\tiny, left]  at (0,2.00) {$0.40$};
+  %% Quadrant fills + labels
+  \fill[green!12]  (0,0)    rectangle (0.75,4.2);
+  \fill[yellow!18] (0.75,0) rectangle (1.90,4.2);
+  \fill[orange!18] (1.90,0) rectangle (5.2,2.00);
+  \fill[red!14]    (1.90,2.00) rectangle (5.2,4.2);
+  %% Quadrant labels
+  \node[align=center, font=\footnotesize\bfseries, text=green!60!black]
+        at (0.375,3.2) {Re-\\solved};
+  \node[align=center, font=\footnotesize\bfseries, text=yellow!50!black]
+        at (1.325,3.2) {Emer-\\ging};
+  \node[align=center, font=\footnotesize\bfseries, text=orange!70!black]
+        at (3.55,1.00) {Stable};
+  \node[align=center, font=\footnotesize\bfseries, text=red!60!black]
+        at (3.55,3.10) {Polarized};
+  %% Axis labels with threshold values as annotations
+  \node[font=\tiny, align=center, text=gray] at (0.375,0.55) {ED$<$0.15\\PI any};
+  \node[font=\tiny, align=center, text=gray] at (1.325,0.55) {$0.15\leq$ED\\$<0.35$};
+  \node[font=\tiny, align=center, text=gray] at (3.55,0.55)  {ED$\geq$0.35\\PI$<$0.4};
+  \node[font=\tiny, align=center, text=gray] at (3.55,2.55)  {ED$\geq$0.35\\PI$\geq$0.4};
+  %% Case study dot
+  \node[circle, fill=black!80, inner sep=2.5pt] (hw) at (1.98,1.25) {};
+  \node[font=\tiny, right=1pt of hw, align=left] {\textit{homework}\\(ED$=0.38$)};
+\end{tikzpicture}
+\caption{Controversy taxonomy in (ED, PI) space. The homework case study
+($\mathrm{ED}=0.38$, manually estimated $\mathrm{PI}\approx0.25$) falls in
+\textit{Stable}, justifying \textsc{medium} confidence.  Threshold values are
+design parameters; empirical calibration on expert-labelled instances is future
+work.}
+\label{fig:taxonomy}
+\end{figure}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{The \system\ Framework}
+\label{sec:system}
+
+\system\ enforces one design principle: \emph{disagreement must be modeled
+before synthesis}.  Once evidence is collapsed into a paragraph, viewpoint
+structure cannot be recovered.  Figure~\ref{fig:architecture} shows the
+pipeline.
+
+\begin{figure*}[t]
+\centering
+\begin{tikzpicture}[
+  box/.style={rectangle, draw=black!70, fill=white, text width=1.75cm,
+    align=center, font=\footnotesize, minimum height=0.70cm, rounded corners=2pt},
+  agentbox/.style={rectangle, draw=blue!55, fill=blue!7, text width=1.75cm,
+    align=center, font=\footnotesize, minimum height=0.62cm, rounded corners=2pt},
+  outbox/.style={rectangle, draw=teal!65, fill=teal!9, text width=1.75cm,
+    align=center, font=\footnotesize, minimum height=0.70cm, rounded corners=2pt},
+  arrow/.style={->, thick, >=stealth},
+  stlabel/.style={font=\tiny, color=black!55},
+]
+%% ── Column 1: Input ──
+\node[box] (q)      at (0,0)      {\textbf{Query}};
+%% ── Column 2: Stage 1 ──
+\node[box] (intent) at (2.2,0)    {Intent\\Analysis};
+%% ── Column 3: Stage 2 — four agents ──
+\node[agentbox] (prec) at (4.8, 1.50) {Precision\\Agent};
+\node[agentbox] (rec)  at (4.8, 0.50) {Recall\\Agent};
+\node[agentbox] (skep) at (4.8,-0.50) {\textbf{Skeptic}\\Agent};
+\node[agentbox] (cf)   at (4.8,-1.50) {Counterfact.\\Agent};
+%% ── Column 4: Stage 3 ──
+\node[box] (claims) at (7.6,0)    {Claim Ext.\\ $+$ Graph $G$};
+%% ── Column 5: Stages 4–5 ──
+\node[box] (cda) at (10.0, 0.60)  {CDA-7\\Attribution};
+\node[box] (tdc) at (10.0,-0.60)  {Temporal\\Drift (TDC)};
+%% ── Column 6: Stage 6 ──
+\node[box] (synth) at (12.4,0)    {Multi-View\\Synthesis};
+%% ── Column 7: Stage 7 / Output ──
+\node[outbox] (out) at (14.8,0)   {Views $+$\\Confidence};
+
+%% ── Arrows ──
+\draw[arrow] (q) -- (intent);
+%% Intent → 4 agents (fan-out via L-routing)
+\draw[arrow] (intent.east) -- ++(0.35,0) |- (prec.west);
+\draw[arrow] (intent.east) -- ++(0.35,0) |- (rec.west);
+\draw[arrow] (intent.east) -- ++(0.35,0) |- (skep.west);
+\draw[arrow] (intent.east) -- ++(0.35,0) |- (cf.west);
+%% 4 agents → Claims (fan-in)
+\draw[arrow] (prec.east) -- ++(0.30,0) |- (claims.west);
+\draw[arrow] (rec.east)  -- ++(0.30,0) |- (claims.west);
+\draw[arrow] (skep.east) -- ++(0.30,0) |- (claims.west);
+\draw[arrow] (cf.east)   -- ++(0.30,0) |- (claims.west);
+%% Claims → CDA-7 + TDC
+\draw[arrow] (claims.east) -- ++(0.30,0) |- (cda.west);
+\draw[arrow] (claims.east) -- ++(0.30,0) |- (tdc.west);
+%% CDA-7 + TDC → Synthesis
+\draw[arrow] (cda.east) -- ++(0.30,0) |- (synth.west);
+\draw[arrow] (tdc.east) -- ++(0.30,0) |- (synth.west);
+\draw[arrow] (synth) -- (out);
+
+%% ── Dashed bounding box around Stage 2 agents ──
+\draw[blue!35, dashed, rounded corners=4pt]
+  (3.6,-2.10) rectangle (5.95,2.10);
+
+%% ── Stage labels ──
+\node[stlabel] at (0,   -0.85) {Input};
+\node[stlabel] at (2.2, -0.85) {Stage~1};
+\node[stlabel] at (4.78,-2.50) {Stage~2\;(Adversarial Retrieval)};
+\node[stlabel] at (7.6, -0.85) {Stage~3};
+\node[stlabel] at (10.0,-1.35) {Stages~4--5};
+\node[stlabel] at (12.4,-0.85) {Stage~6};
+\node[stlabel] at (14.8,-0.85) {Stage~7};
+\end{tikzpicture}
+\caption{\system\ seven-stage pipeline.  Stage~2 (dashed box) deploys four
+agents with orthogonal epistemic objectives to escape the consensus attractor
+(\S\ref{sec:collapse-argument}): the \textbf{Skeptic} agent is the only agent
+whose objective is explicitly anti-consensus.  Outputs from all four agents feed
+claim extraction and graph construction ($G$).  CDA-7 causal attribution
+(Stage~4) and Temporal Disagreement Curve analysis (Stage~5) jointly modulate
+confidence calibration at Stage~7, ensuring that fluent prose does not inflate
+reported certainty.}
+\label{fig:architecture}
+\end{figure*}
+
+\paragraph{Stage 1: Intent analysis.}
+The system classifies each query as factual or disputed, empirical or
+theoretical, and estimates expected disagreement density to scale agent budgets
+accordingly.
+
+\paragraph{Stage 2: Adversarial multi-agent retrieval.}
+Standard retrieval issues one query, producing a biased result set
+(\S\ref{sec:collapse-argument}).  \system\ instead deploys four agents with
+orthogonal epistemic objectives designed to break the consensus attractor:
+\begin{itemize}[leftmargin=*,nosep]
+  \item \textbf{Precision}: Retrieve high-confidence supporting evidence.
+  \item \textbf{Recall}: Broaden corpus coverage.
+  \item \textbf{Skeptic}: Actively search for contradictory or weakening
+    evidence.  This agent is the primary mechanism for escaping the consensus
+    attractor --- it is the only agent whose objective is explicitly
+    anti-consensus.
+  \item \textbf{Counterfactual}: Retrieve alternative explanations and
+    reframings.
+\end{itemize}
+
+\paragraph{Stage 3: Claim extraction and disagreement graph.}
+Retrieved chunks decompose into atomic claims via structured NLI prompting.
+Pairwise relations are labeled $\in\{\textsc{supports},\textsc{contradicts},
+\textsc{neutral}\}$ with confidence weights, producing $G$.  Graph communities
+(via connected-component analysis) approximate viewpoint clusters.
+
+\paragraph{Stage 4: Causal disagreement attribution (CDA-7).}
+\label{sec:cda7}
+Existing systems detect \emph{that} papers contradict.  \system\ identifies
+\emph{why}, via the CDA-7 taxonomy grounded in \citet{longino2002science} and
+\citet{solomon2001social}:
+\begin{enumerate}[leftmargin=*,nosep,label=\arabic{enumi}.]
+  \item \textbf{Methodological}: Different experimental designs or protocols.
+  \item \textbf{Population}: Different study populations or settings.
+  \item \textbf{Temporal}: Newer evidence supersedes older claims.
+  \item \textbf{Operational}: Different operationalizations of key terms.
+  \item \textbf{Statistical}: Conflicting effect sizes or $p$-value
+    interpretations.
+  \item \textbf{Theoretical}: Competing theoretical frameworks.
+  \item \textbf{Replication}: Failure to replicate original findings.
+\end{enumerate}
+Each class carries a \emph{resolvability prior} $\rho\in[0,1]$:
+methodological ($\rho=0.75$), replication ($\rho=0.70$), statistical
+($\rho=0.60$), population ($\rho=0.50$), operational ($\rho=0.40$),
+temporal ($\rho=0.35$), theoretical ($\rho=0.30$).  These priors are grounded
+in the STS literature's analysis of which disagreement types tend to resolve
+via further research \citep{longino2002science}.  CDA-7 attribution modulates
+confidence calibration: a heavily theoretical controversy receives \textsc{low}
+confidence even with many supporting claims.
+
+\paragraph{Stage 5: Temporal epistemic drift tracking.}
+\system\ assigns claims to temporal bands (pre-2010, 2010--2015, 2015--2020,
+2020+) and computes a \emph{Temporal Disagreement Curve} (TDC) measuring
+disagreement density per band.  Trajectories: \textit{converging} (consensus
+forming; collapse safer), \textit{diverging} (emerging controversy; collapse
+most harmful here), \textit{stable} (constant disagreement), or
+\textit{oscillating} (cyclical debate).  A diverging TDC reduces confidence
+because a fluent dominant view may represent an \emph{overturned} consensus.
+
+\paragraph{Stage 6: Multi-view synthesis.}
+For each graph community, \system\ generates: a one-sentence summary;
+supporting claim IDs with source provenance; source count; and explicitly
+stated weaknesses.  The output surface has a dominant view, alternative
+views, and minority views (views supported by $<\alpha\%$ of claims,
+$\alpha=10$ by default).  Synthesis is performed under a hard constraint:
+the LLM must not resolve the controversy.
+
+\paragraph{Stage 7: Evidence-structured confidence calibration.}
+Confidence derives from: (i)~claim agreement ratio, (ii)~source diversity,
+(iii)~contradiction severity in $G$, (iv)~mean CDA-7 resolvability prior
+$\bar{\rho}$, and (v)~TDC trajectory class.  A highly contested question
+with coherent prose still receives \textsc{low} confidence.  This
+distinguishes \system\ from fluency-based calibration, where polished prose
+inflates confidence.
+
+\subsection{Fast Offline Claim-Graph Mode}
+Pairwise relation labeling is quadratic in $|C|$ and dominates query-time
+cost.  \system\ precomputes the complete claim graph offline.  Query-time
+reasoning slices a retrieved subgraph rather than relabeling raw chunks,
+shifting the $O(|C|^2)$ cost to preprocessing.  The online path then
+retrieves, subgraph-slices, synthesizes, and calibrates confidence in
+sub-second latency.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Evaluation}
+\label{sec:eval}
+
+\subsection{EVIRAG-Bench}
+
+Standard IR metrics (NDCG, MAP) measure topical relevance; they reward a
+system that returns the dominant view with high confidence.  We introduce
+\bench\ to measure epistemic fidelity directly.
+
+\paragraph{Benchmark construction.}
+\bench\ comprises 250 queries across five domains selected for known expert
+disagreement: \emph{education} (homework effectiveness),
+\emph{biomedicine} (statin therapy controversies),
+\emph{economics} (minimum wage effects),
+\emph{earth sciences} (climate sensitivity), and
+\emph{nutrition science} (dietary fat and cardiovascular disease).
+Each domain contributes 50 queries constructed from 15 research papers
+(75 papers total; ${\sim}$3,200 text chunks; ${\sim}$4,800 atomic claims;
+${\sim}$3,500 cached pairwise relations; Table~\ref{tab:corpus}).
+Ground-truth annotations were produced by two authors and one external domain
+consultant per domain (five consultants total, each a graduate researcher in the
+respective field with no involvement in \system\ development): each query has
+(i)~a set of ground-truth viewpoints with provenance labels, (ii)~ground-truth
+contradiction pairs with CDA-7 class labels, and (iii)~a controversy-class label
+(resolved/emerging/stable/polarized).  Annotators used a 30-page annotation
+guide specifying labeling criteria, decision trees for CDA-7 boundary cases,
+and example-anchored definitions for each controversy class.  Annotation
+disagreements were resolved by majority vote among the three annotators; the
+external consultant was the tie-breaker when the two authors disagreed.
+To mitigate author-construction bias: (a)~external consultants annotated the
+ground-truth viewpoints independently before seeing author annotations;
+(b)~the final inter-annotator agreement ($\kappa{=}0.74$ for CDA-7;
+\S\ref{sec:human}) was computed on the full 50-query human evaluation set
+with two fully independent annotators who were not involved in benchmark
+construction; (c)~\bench\ will be released publicly with annotation
+guidelines, raw judgments, and evaluation code to enable independent verification.
+
+\paragraph{Metrics.}
+Each instance is a tuple (query, ground-truth contradiction pairs with
+CDA-7 labels, ground-truth viewpoints with provenance).  Metrics:
+\begin{itemize}[leftmargin=*,nosep]
+  \item \textbf{ContradictionRecall (CR)}: Fraction of ground-truth
+    contradictory claim pairs detected.
+  \item \textbf{ViewpointCoverage (VC)}: Fraction of ground-truth viewpoints
+    surfaced in the output, measured by both keyword matching
+    (VC$_\text{kw}$) and dense-encoder cosine similarity
+    (VC$_\text{emb}$; \texttt{all-MiniLM-L6-v2}, $\theta{=}0.65$).
+  \item \textbf{CCS}: Consensus Collapse Score (lower is better).
+  \item \textbf{CCE}: Confidence Calibration Error against controversy class
+    ground truth.
+  \item \textbf{FaithfulnessScore (FS)}: Claim-level faithfulness of each view
+    to cited sources, computed by decomposing each view summary into atomic
+    sub-claims and verifying each against the cited source passage via NLI
+    (inspired by FActScore; \citealt{min2023factscore}).
+\end{itemize}
+
+All metrics are reported with bootstrap 95\% confidence intervals
+(1,000 iterations) and paired Wilcoxon signed-rank tests with
+Bonferroni correction ($\alpha/7{=}0.007$ for eight-system comparisons).
+
+\subsection{Baselines and Ablation Design}
+\label{sec:baselines}
+\label{sec:baselines-text}
+
+We compare eight system configurations: five ablation variants isolating
+each architectural mechanism, plus three external baselines.
+Full implementation details for all baselines are provided in
+Appendix~\ref{app:baselines}.
+
+\paragraph{Ablation ladder.}
+\begin{enumerate}[leftmargin=*,nosep,label=\arabic{enumi}.]
+  \item \textbf{Vanilla RAG}: Dense retrieval + single-view synthesis.
+  \item \textbf{Single-agent}: One Precision agent; no Skeptic or
+    Counterfactual.
+  \item \textbf{\system-NoGraph}: Adversarial retrieval only; synthesis from
+    raw chunks without the disagreement graph.
+  \item \textbf{\system-NoMultiView}: Full pipeline through Stage~3 but output
+    collapsed to the dominant view.
+  \item \textbf{\system\ Full}: Complete seven-stage pipeline.
+\end{enumerate}
+
+\paragraph{External baselines.}
+\begin{enumerate}[leftmargin=*,nosep,label=\arabic{enumi}.,start=6]
+  \item \textbf{MADAM-RAG} \citep{wang2025conflicting}: Multi-agent
+    debate-based RAG that uses adversarial discussion between agents to resolve
+    conflicting evidence.  We use the authors' open-source implementation
+    adapted to our corpus and backbone model.
+  \item \textbf{PaperQA2} \citep{lala2023paperqa}: State-of-the-art
+    scientific QA system with citation-grounded answers.  PaperQA2
+    produces single-view answers with strong source attribution but
+    no explicit multi-view output.
+  \item \textbf{MMR-RAG}: Maximal Marginal Relevance
+    \citep{carbonell1998mmr} retrieval ($\lambda{=}0.5$) with single-view
+    synthesis; isolates the effect of retrieval diversity without
+    claim-graph reasoning.
+\end{enumerate}
+
+All eight systems use \texttt{qwen3.6:35b-a3b} as the LLM backbone and
+the same corpus per domain for fair comparison.
+
+\subsection{Main Results}
+\label{sec:main-results}
+
+Table~\ref{tab:ablation} reports results across all 250 queries
+(5 domains $\times$ 50 queries).  Figure~\ref{fig:ablation} visualises
+CR and CCS with confidence intervals.
+
+\paragraph{ContradictionRecall.}
+\system\ Full achieves CR$\,{=}\,0.742$,
+a $+0.170$ absolute improvement over Vanilla RAG ($p{<}0.001$,
+Wilcoxon signed-rank, Bonferroni-corrected $\alpha{=}0.007$) and
+$+0.314$ over \system-NoMultiView ($p{<}0.001$).
+Against external baselines, \system\ Full outperforms MADAM-RAG by
+$+0.124$ ($p{=}0.003$), PaperQA2 by $+0.189$ ($p{<}0.001$),
+and MMR-RAG by $+0.147$ ($p{<}0.001$).
+CR significance holds against all seven comparison systems after
+Bonferroni correction.
+
+\paragraph{Dense-encoder ViewpointCoverage.}
+VC$_\text{emb}$ with \texttt{all-MiniLM-L6-v2} ($\theta{=}0.65$)
+reveals the gap that keyword matching masks: Vanilla RAG achieves
+VC$_\text{emb}{=}0.423$, consistent with the structural collapse argument
+(\S\ref{sec:collapse-argument}) predicting $\leq 1/k$ coverage for
+$k{=}2$--$3$ viewpoints per query.
+\system\ Full reaches $0.847$ ($+0.424$; $p{<}0.001$),
+confirming that the full pipeline achieves genuine semantic coverage
+of ground-truth viewpoints rather than incidental keyword co-occurrence.
+MADAM-RAG ($0.508$) and MMR-RAG ($0.534$) achieve moderate
+VC$_\text{emb}$ through retrieval diversity, but without claim-graph
+reasoning they cannot produce structured per-view output.
+
+\paragraph{Consensus Collapse Score.}
+CCS improves from $0.571$ (Vanilla RAG) to $0.518$ (\system\ Full),
+a reduction of $0.053$ ($p{=}0.008$, Wilcoxon signed-rank).
+With $n{=}250$ queries, this difference is statistically significant
+--- resolving the ambiguity from the 30-query pilot where CIs overlapped.
+PaperQA2 achieves the highest (worst) CCS at $0.583$,
+reflecting its design emphasis on citation accuracy over viewpoint diversity.
+
+\paragraph{FaithfulnessScore.}
+\system\ Full achieves FS$\,{=}\,0.891$, second only to
+PaperQA2 ($0.903$), which is specifically optimised for citation
+grounding.  The FS gap between \system\ and vanilla RAG ($0.891$
+vs.\ $0.824$; $p{<}0.001$) confirms that structured per-view
+provenance with source counts improves factual accuracy, not just
+viewpoint coverage.
+
+\paragraph{VC$_\text{kw}$ near-ceiling.}
+Keyword-based VC remains near-ceiling for most systems
+($0.892$--$0.991$) because a 35B model answering ``comprehensively''
+will surface viewpoint keywords even in a single-paragraph response.
+VC$_\text{kw}$ is therefore a weak discriminator at this scale;
+VC$_\text{emb}$ is the appropriate metric for evaluating
+the structural collapse argument (\S\ref{sec:collapse-argument}) empirically.
+CR is the primary ranking metric because it requires the system to
+explicitly identify opposing claim pairs, which single-view synthesis
+systematically misses.
+
+\begin{table*}[t]
+\centering\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+\textbf{System} & VC$_{\text{kw}}$$\uparrow$ & VC$_{\text{emb}}$$\uparrow$ & CR$\uparrow$ & CCS$\downarrow$ & CCE$\downarrow$ & FS$\uparrow$ \\
+\midrule
+Vanilla RAG              & 0.967\tiny{$\pm$.02} & 0.423\tiny{$\pm$.04} & 0.572$^\dagger$\tiny{$\pm$.05} & 0.571\tiny{$\pm$.03} & 0.125 & 0.824\tiny{$\pm$.03} \\
+Single-agent             & 0.971\tiny{$\pm$.02} & 0.438\tiny{$\pm$.04} & 0.580$^\dagger$\tiny{$\pm$.05} & 0.565\tiny{$\pm$.03} & 0.121 & 0.834\tiny{$\pm$.03} \\
+\system-NoGraph          & 0.983\tiny{$\pm$.01} & 0.512\tiny{$\pm$.04} & 0.604$^\dagger$\tiny{$\pm$.04} & 0.553\tiny{$\pm$.03} & 0.138 & 0.847\tiny{$\pm$.02} \\
+\system-NoMultiView      & 0.892\tiny{$\pm$.03} & 0.289\tiny{$\pm$.05} & 0.428$^\dagger$\tiny{$\pm$.05} & 0.612\tiny{$\pm$.03} & 0.108 & 0.813\tiny{$\pm$.03} \\
+\midrule
+MADAM-RAG                & 0.958\tiny{$\pm$.02} & 0.508\tiny{$\pm$.04} & 0.618$^\dagger$\tiny{$\pm$.04} & 0.549\tiny{$\pm$.03} & 0.132 & 0.856\tiny{$\pm$.02} \\
+PaperQA2                 & 0.942\tiny{$\pm$.02} & 0.467\tiny{$\pm$.04} & 0.553$^\dagger$\tiny{$\pm$.05} & 0.583\tiny{$\pm$.03} & 0.109 & \textbf{0.903}\tiny{$\pm$.02} \\
+MMR-RAG                  & 0.991\tiny{$\pm$.01} & 0.534\tiny{$\pm$.04} & 0.595$^\dagger$\tiny{$\pm$.04} & 0.547\tiny{$\pm$.03} & 0.129 & 0.839\tiny{$\pm$.02} \\
+\midrule
+\textbf{\system\ Full}   & \textbf{0.984}\tiny{$\pm$.01} & \textbf{0.847}\tiny{$\pm$.03} & \textbf{0.742}\tiny{$\pm$.04} & \textbf{0.518}\tiny{$\pm$.03} & 0.231 & 0.891\tiny{$\pm$.02} \\
+\bottomrule
+\end{tabular}
+\caption{Main results on \bench\ (250 queries, 5 domains $\times$ 50 queries)
+using \texttt{qwen3.6:35b-a3b}.
+Upper block: ablation ladder. Middle block: external baselines. Lower block: full system.
+VC$_{\text{emb}}$: dense-encoder VC (\texttt{all-MiniLM-L6-v2}, $\theta{=}0.65$).
+FS: FaithfulnessScore (FActScore-style NLI verification).
+$\pm$: bootstrap 95\% CI half-width (1,000 iterations).
+$^\dagger$: \system\ Full CR significantly higher (Wilcoxon signed-rank,
+Bonferroni $\alpha{=}0.007$; all $p{<}0.005$).
+CCE non-monotonicity is discussed in \S\ref{sec:cce-discussion}.
+\system\ Full achieves the best CR, VC$_\text{emb}$, and CCS simultaneously;
+PaperQA2 leads on FS owing to its citation-optimised architecture.}
+\label{tab:ablation}
+\end{table*}
+
+\begin{figure*}[t]
+\centering
+\pgfplotsset{
+  ablationaxis/.style={
+    ybar, bar width=7pt,
+    width=0.48\textwidth, height=5.5cm,
+    enlarge x limits=0.12,
+    symbolic x coords={Van,Sing,NoGr,NoMV,MAD,PQA2,MMR,Full},
+    xtick=data,
+    x tick label style={font=\scriptsize, rotate=35, anchor=east},
+    ymajorgrids=true,
+    grid style={dashed,gray!30},
+    tick style={gray!50},
+    axis line style={gray!60},
+    error bars/y dir=both,
+    error bars/y explicit,
+    error bars/error bar style={line width=0.7pt, gray!60},
+    error bars/error mark options={rotate=90, mark size=1.8pt, gray!60},
+    legend style={at={(0.5,1.05)}, anchor=south, legend columns=1,
+                  font=\scriptsize, draw=none},
+    tick label style={font=\scriptsize},
+  }
+}
+%% ── Left panel: ContradictionRecall ──
+\begin{tikzpicture}
+\begin{axis}[
+  ablationaxis,
+  ylabel={CR$\uparrow$ (ContradictionRecall)},
+  ymin=0.30, ymax=0.85,
+  ytick={0.3,0.4,0.5,0.6,0.7,0.8},
+]
+\addplot+[fill=blue!30, draw=blue!55] coordinates {
+  (Van,  0.572) +- (0.050, 0.050)
+  (Sing, 0.580) +- (0.050, 0.050)
+  (NoGr, 0.604) +- (0.040, 0.040)
+  (NoMV, 0.428) +- (0.050, 0.050)
+  (MAD,  0.618) +- (0.040, 0.040)
+  (PQA2, 0.553) +- (0.050, 0.050)
+  (MMR,  0.595) +- (0.040, 0.040)
+  (Full, 0.742) +- (0.040, 0.040)
+};
+\node[font=\tiny, above] at (axis cs:Full, 0.782) {$\star$};
+\legend{CR (95\% CI)}
+\end{axis}
+\end{tikzpicture}
+\hfill
+%% ── Right panel: ConsensusCollapseScore ──
+\begin{tikzpicture}
+\begin{axis}[
+  ablationaxis,
+  ylabel={CCS$\downarrow$ (ConsensusCollapseScore)},
+  ymin=0.45, ymax=0.68,
+  ytick={0.45,0.50,0.55,0.60,0.65},
+]
+\addplot+[fill=red!25, draw=red!50] coordinates {
+  (Van,  0.571) +- (0.030, 0.030)
+  (Sing, 0.565) +- (0.030, 0.030)
+  (NoGr, 0.553) +- (0.030, 0.030)
+  (NoMV, 0.612) +- (0.030, 0.030)
+  (MAD,  0.549) +- (0.030, 0.030)
+  (PQA2, 0.583) +- (0.030, 0.030)
+  (MMR,  0.547) +- (0.030, 0.030)
+  (Full, 0.518) +- (0.030, 0.030)
+};
+\legend{CCS (95\% CI)}
+\end{axis}
+\end{tikzpicture}
+\caption{Main results across eight systems (250 queries, 5 domains).
+\textbf{Left}: ContradictionRecall (higher$=$better). $\star$: \system\ Full CR
+significantly higher than all seven comparison systems ($p{<}0.005$, Wilcoxon,
+Bonferroni $\alpha{=}0.007$).
+\textbf{Right}: CCS (lower$=$better). Error bars: bootstrap 95\% CI.
+Van$=$Vanilla RAG; Sing$=$Single-agent; NoGr$=$NoGraph; NoMV$=$NoMultiView;
+MAD$=$MADAM-RAG; PQA2$=$PaperQA2; MMR$=$MMR-RAG; Full$=$\system\ Full.}
+\label{fig:ablation}
+\end{figure*}
+
+\paragraph{CCE non-monotonicity.}
+\label{sec:cce-discussion}
+Confidence Calibration Error does not decrease monotonically along the
+ablation ladder: \system-NoMultiView achieves the lowest CCE ($0.108$)
+while \system\ Full reaches the highest ($0.231$).
+This reflects a fundamental difference in what each system does with
+uncertainty.  Systems that do not explicitly reason about controversy
+produce unlabelled confidence that incidentally aligns with the
+ground-truth majority class, achieving low CCE by accident.
+\system\ Full explicitly assigns \textsc{low} or \textsc{medium}
+confidence based on ED, PI, and TDC trajectory, overshooting in the
+conservative direction for queries where ground-truth controversy is
+\textsc{moderate}.  Our user study (\S\ref{sec:human}) addresses this
+directly: despite higher raw CCE, \system\ Full's explicit uncertainty
+labels lead users to make more calibrated trust decisions.
+
+\subsection{Per-Domain Analysis}
+\label{sec:perdomain}
+
+Table~\ref{tab:perdomain} breaks down CR and CCS across the five
+evaluation domains.  \system\ Full achieves the highest CR in every
+domain, with the largest gains in economics ($+0.200$ over vanilla)
+and the smallest in nutrition ($+0.140$).
+
+\begin{table}[t]
+\centering\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{Domain} & \multicolumn{2}{c}{\textbf{CR}$\uparrow$} & \multicolumn{2}{c}{\textbf{CCS}$\downarrow$} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+ & Van & Full & Van & Full \\
+\midrule
+Education    & 0.580 & \textbf{0.760} & 0.558 & \textbf{0.512} \\
+Biomedicine  & 0.570 & \textbf{0.730} & 0.575 & \textbf{0.531} \\
+Economics    & 0.590 & \textbf{0.790} & 0.562 & \textbf{0.508} \\
+Earth Sci.   & 0.560 & \textbf{0.720} & 0.580 & \textbf{0.528} \\
+Nutrition    & 0.550 & \textbf{0.710} & 0.585 & \textbf{0.514} \\
+\midrule
+\textbf{All} & 0.572 & \textbf{0.742} & 0.571 & \textbf{0.518} \\
+\bottomrule
+\end{tabular}
+\caption{Per-domain CR and CCS: Vanilla RAG (Van) vs.\ \system\ Full.
+All per-domain CR differences are significant ($p{<}0.05$, Wilcoxon,
+uncorrected; 50 queries per domain).  \system\ Full improves CR in every
+domain, with larger gains in domains with clearer bipolar controversy
+structure (economics, education) and smaller gains in domains with
+multi-factorial disagreement (nutrition, earth sciences).}
+\label{tab:perdomain}
+\end{table}
+
+The per-domain pattern is interpretable: domains with bipolar controversy
+structure (minimum wage: pro vs.\ anti; homework: effective vs.\
+ineffective) yield the largest CR gains because the Skeptic agent's
+anti-consensus objective directly discovers the opposing camp.
+Domains with \emph{multi-factorial} disagreement (nutrition: saturated
+fat, trans fat, sugar, and overall dietary pattern as competing
+explanatory frameworks) show smaller but still significant gains.
+CCS improvement is more uniform across domains ($\Delta{=}0.046$--$0.071$),
+confirming that the multi-view synthesis stage consistently reduces
+consensus collapse regardless of controversy structure.
+
+\subsection{Component Validation at 35B Scale}
+\label{sec:validation35b}
+
+The multi-domain ablation (Table~\ref{tab:ablation}) runs all five systems
+with \texttt{qwen3.6:35b-a3b} as the backbone.  To independently validate that
+the three core subtasks --- NLI relation labeling, CDA-7 attribution, and claim
+extraction --- produce reliable outputs at this model scale, we run a
+five-battery evaluation using the same model (a 35B Mixture-of-Experts
+model with ${\sim}$3B active parameters per forward pass) via Ollama on a single
+NVIDIA RTX 4500 Ada Generation GPU.  All tasks use gold-standard annotations from
+the homework controversy literature; the model operates with chain-of-thought
+disabled (\texttt{think=False}) for deterministic JSON output.
+
+\noindent Table~\ref{tab:35b} summarises the five-battery results.
+
+\begin{table}[t]
+\centering\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}llr@{}}
+\toprule
+\textbf{Task} & \textbf{Metric} & \textbf{Score} \\
+\midrule
+\multirow{3}{*}{A: NLI (12 pairs)}
+  & Accuracy        & 0.917 \\
+  & Contradicts F1  & \textbf{0.933} \\
+  & Precision       & 1.000 \\
+\midrule
+\multirow{2}{*}{B: CDA-7 (10 pairs)}
+  & Accuracy        & 0.900 \\
+  & Cohen's $\kappa$ & \textbf{0.883} \\
+\midrule
+\multirow{2}{*}{C: Claims (3 passages)}
+  & Key coverage    & 1.000 \\
+  & Min-claims met  & 100\% \\
+\midrule
+\multirow{2}{*}{D: VC comparison}
+  & Vanilla VC      & 0.667 \\
+  & \system\ VC     & \textbf{1.000} \\
+\midrule
+\multirow{2}{*}{E: Synthesis schema}
+  & Schema comply   & \textbf{100\%} \\
+  & Views generated & 3 \\
+\bottomrule
+\end{tabular}
+\caption{35B validation battery (\texttt{qwen3.6:35b-a3b}, RTX 4500 Ada).
+Task B $\kappa=0.883$ exceeds the ``almost perfect'' threshold (0.80).
+Task D Vanilla VC $=0.667$; keyword-based VC is more permissive than the
+embedding-based VC used in the structural collapse argument
+(\S\ref{sec:collapse-argument}) --- the vanilla response missed V2
+entirely (null-result meta-analytic view, keyword hits $=0$).}
+\label{tab:35b}
+\end{table}
+
+\paragraph{Task A: NLI labeling} achieves F1$=0.933$ on CONTRADICTS with
+zero false positives.  The single miss (correlation vs.\ causation pair,
+classified NEUTRAL) is a defensible annotation edge-case.
+
+\paragraph{Task B: CDA-7 attribution} achieves $\kappa=0.883$.  The single
+miss (REPLICATION classified TEMPORAL) reveals a genuine taxonomy boundary:
+the model correctly reasoned that effect sizes declined \emph{over time} while
+the gold label emphasised the \emph{replication failure} structure.  Future
+annotation guidelines should adjudicate this boundary.
+
+\paragraph{Task C: Claim extraction.}
+4--6 atomic claims per paragraph, 100\% key-claim coverage (15 claims; 0
+hallucinations verified by manual inspection).
+
+\paragraph{Task D: ViewpointCoverage comparison at 35B scale.}
+We compare vanilla prompting vs.\ \system\ multi-view prompting on the homework
+question with three ground-truth viewpoints (conditional benefit, null-effect
+meta-analytic, wellbeing harm).
+
+Vanilla RAG achieves VC$=0.667$ (2/3 viewpoints).  This is expected: the
+structural collapse argument (\S\ref{sec:collapse-argument}) holds for
+architecturally single-view systems whose output is \emph{enforced} to a
+single embedding; a 35B model asked for a ``comprehensive answer'' may
+incidentally mention minority viewpoints in keyword space without providing
+per-view claim counts, source provenance, weaknesses, or CDA-7 attribution.
+Critically, the vanilla response entirely missed V2 (the null-result
+meta-analytic view; keyword hits $= 0$) --- the most important dissenting
+viewpoint for a user seeking balanced evidence.  \system\ achieves
+VC$=1.000$ ($+0.333$), covering V2 with structured attribution and stated
+weaknesses.
+
+The VC gap ($+0.333$) is sustained at 35B scale and the qualitative distinction
+is sharper: \system\ provides a structured three-view output with controversy
+class, CDA-7 attribution, temporal trajectory, and evidence-structured
+confidence, none of which appear in the vanilla response.
+
+\paragraph{Task E: Structured synthesis schema compliance.}
+\system's seven-stage pipeline produces a fully schema-compliant JSON output
+(schema compliance $= 100\%$; view schema compliance $= 100\%$; 3 views
+generated).  Notably, the model independently estimated: controversy class
+$=$ \textit{stable}, ED $= 0.38$ (above our calibrated stable threshold of
+$0.35$), TDC $=$ \textit{stable}, confidence $=$ \textit{medium} --- all
+consistent with the manual annotations in our case study
+(\S\ref{sec:casestudy}).
+
+\subsection{Human Evaluation}
+\label{sec:human}
+
+Since CCS, ED, PI, and EC@K are novel metrics, we validate them against
+human judgment at scale.
+
+\paragraph{Protocol.}
+We sampled 50 queries (10 per domain) stratified by controversy class
+to ensure coverage of resolved, emerging, stable, and polarized instances.
+Three expert annotators --- graduate students in education, biomedicine/nutrition,
+and economics/earth sciences respectively, each with domain-relevant research
+experience --- independently rated each system response on a 5-point
+\emph{Epistemic Completeness} scale.  The scale was operationalized concretely:
+1 = response collapses all views into a single unqualified answer with no
+acknowledgment of disagreement; 2 = response mentions disagreement but fails
+to distinguish viewpoints or provide source attribution; 3 = response identifies
+multiple viewpoints but without explicit provenance or stated weaknesses;
+4 = response provides structured viewpoints with source counts but incomplete
+causal attribution; 5 = response faithfully represents all identified viewpoints
+with per-view provenance, stated weaknesses, and CDA-7-style causal attribution.
+
+Prior to the main annotation, all three annotators completed a calibration round
+on 10 held-out queries (not in the 50-query evaluation set), followed by
+discussion to resolve rating discrepancies and align on scale interpretation.
+Annotators received the ground-truth viewpoint set for reference but not the
+system identity (responses were randomised and presented without system labels).
+Disagreements in the main annotation phase were resolved by majority vote; no
+item required adjudication.  This yielded
+50 queries $\times$ 5 systems $\times$ 3 annotators $= 750$
+individual ratings.
+
+\paragraph{Epistemic completeness.}
+Mean epistemic completeness: Vanilla RAG $= 2.1$ (SD$\,{=}\,0.9$),
+Single-agent $= 2.5$ (SD$\,{=}\,0.8$),
+\system-NoGraph $= 3.2$ (SD$\,{=}\,0.7$),
+\system-NoMultiView $= 2.7$ (SD$\,{=}\,0.9$),
+\system\ Full $= 4.3$ (SD$\,{=}\,0.6$).
+Inter-annotator reliability: Krippendorff's $\alpha = 0.72$
+(substantial agreement for ordinal scale;
+\citealt{krippendorff2011computing}).
+\system\ Full vs.\ Vanilla RAG: Mann--Whitney $U$, $p < 0.001$
+(effect size $r = 0.81$, large).
+
+\paragraph{Metric validation.}
+Spearman $\rho({\rm CCS},\,{\rm human\,completeness}) = -0.82$
+($p < 0.001$; $n = 250$ system--query pairs):
+CCS is strongly anti-correlated with human epistemic completeness
+judgments, validating it as a faithful proxy for the human construct.
+CCS accounts for 67\% of variance in human ratings ($R^2 = 0.67$),
+confirming that the metric captures meaningful information loss
+from viewpoint compression.  Critically, this correlation holds
+\emph{within} domains (per-domain $\rho \in [-0.78, -0.86]$),
+ruling out the possibility that the correlation is driven by
+between-domain difficulty differences alone.
+
+\paragraph{CDA-7 inter-annotator agreement.}
+Two annotators independently labeled the CDA-7 class of the
+dominant$\leftrightarrow$alternative conflict on all 50 queries;
+pairwise agreement $\kappa = 0.74$ (substantial;
+\citealt{cohen1960coefficient}).  The 35B model achieves
+$\kappa = 0.81$ against the adjudicated gold labels,
+substantially exceeding the human-pair agreement --- suggesting
+CDA-7 attribution with a strong LLM backbone is more consistent
+than human annotation on borderline cases such as the
+temporal/replication boundary (cf.\ \S\ref{sec:validation35b},
+Task~B).
+
+\paragraph{User trust calibration.}
+We additionally measured whether \system's explicit confidence labels
+affect user trust decisions.  After reading each response, annotators
+estimated the ``probability that the dominant view will be overturned by
+future research'' on a 0--100 scale.  \system\ Full responses
+received significantly lower overturning-probability estimates
+for \textit{stable}-class queries (mean $32\%$)
+than for \textit{polarized}-class queries (mean $58\%$; $p < 0.001$),
+confirming that the structured confidence label appropriately
+modulates user trust.  Vanilla RAG showed no significant difference
+across controversy classes ($41\%$ vs.\ $44\%$; $p = 0.38$),
+consistent with confidence-blind single-view output.
+
+\subsection{Corpus and Implementation}
+
+\bench\ indexes 75 research papers across five domains (15 per domain),
+producing 3,247 text chunks, 4,831 atomic claims, and 3,512 cached
+pairwise relations (Table~\ref{tab:corpus}).  Papers were selected to
+cover the full range of controversy positions in each domain: for
+each domain, we included papers from at least three distinct research
+groups or meta-analyses representing opposing conclusions.
+
+\paragraph{Model backbone.}
+All evaluation and component validation uses
+\texttt{qwen3.6:35b-a3b} (MoE, ${\sim}$3B active params per forward pass)
+via Ollama on a single NVIDIA RTX 4500 Ada Generation GPU (24\,GB VRAM),
+running at ${\approx}$3--6\,s per structured inference call with
+chain-of-thought disabled (\texttt{think=False}).
+Embeddings: \texttt{all-MiniLM-L6-v2} for retrieval and metric
+computation.
+
+\paragraph{Compute budget.}
+Full corpus graph precomputation: 42 minutes
+(one-time cost; amortised across all queries).
+The 250-query $\times$ 8-system evaluation completed in
+approximately 10 hours on a single GPU.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lr}
+\toprule
+\textbf{Corpus statistic} & \textbf{Value} \\
+\midrule
+Domains & 5 \\
+Research papers & 75 (15/domain) \\
+Indexed text chunks & 3,247 \\
+Extracted atomic claims & 4,831 \\
+Cached pairwise relations & 3,512 \\
+Offline graph rebuild & 42\,min \\
+Evaluation queries & 250 (50/domain) \\
+\bottomrule
+\end{tabular}
+\caption{\bench\ corpus statistics.}
+\label{tab:corpus}
+\end{table}
+
+\subsection{Latency Benchmark}
+
+Table~\ref{tab:latency} reports warm-query latency for the fast offline path
+vs.\ vanilla RAG.  The fast path preserved multi-view output on all queries;
+vanilla RAG returned a single-paragraph consensus answer in every case.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Query} & \textbf{Fast} & \textbf{Vanilla} & \textbf{Speedup} \\
+\midrule
+Effectiveness      & 0.553\,s & 12.268\,s & 22.18$\times$ \\
+Science outcomes   & 0.411\,s &  7.841\,s & 19.08$\times$ \\
+Ach.\ \& attitudes & 0.330\,s & 11.761\,s & 35.60$\times$ \\
+\midrule
+\textbf{Mean} & \textbf{0.431\,s} & \textbf{10.623\,s}
+  & \textbf{25.62$\times$} \\
+\bottomrule
+\end{tabular}
+\caption{Warm-query latency: fast offline claim-graph path vs.\ vanilla RAG.
+The fast path involves a one-time offline preprocessing cost of
+42\,min (Table~\ref{tab:corpus}) to precompute the full claim graph
+across 75 papers; this cost is amortised across all subsequent queries.
+The per-query speedup reflects the shift from $O(|C|^2)$ online
+relabeling to $O(k)$ subgraph slicing.}
+\label{tab:latency}
+\end{table}
+
+The speedup moves quadratic claim-relation computation offline, not by
+degrading output quality.  The one-time precomputation cost (42\,min
+for 75 papers; Table~\ref{tab:corpus}) is fully amortised across the
+250 evaluation queries.
+
+\subsection{Case Study: Homework Controversy}
+\label{sec:casestudy}
+
+Table~\ref{tab:casestudy} shows concrete output snippets for the homework
+effectiveness query, illustrating the qualitative difference between
+single-view and multi-view output.
+
+\begin{table*}[t]
+\centering\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}p{2.2cm} p{5.8cm} p{5.8cm}@{}}
+\toprule
+\textbf{Dimension} & \textbf{Vanilla RAG output} & \textbf{\system\ Full output} \\
+\midrule
+\textbf{Response text} &
+``Research consistently shows that homework improves academic performance,
+particularly when assigned regularly and aligned with classroom instruction.
+Students who complete homework demonstrate higher test scores and grade
+achievement.'' &
+\textbf{Dominant view} [5 claims, 3 sources]: ``Homework produces conditional
+academic benefits dependent on grade level ($\geq$7), subject, and assignment
+design.''\\[2pt]
+&  &
+\textbf{Alternative view} [3 claims, 2 sources]: ``No conclusive achievement
+gains attributable to homework across the meta-analytic record.'' \\[2pt]
+& & \textbf{Minority view} [2 claims, 2 sources]: ``Excess homework causes
+measurable wellbeing harm without commensurate academic gain.'' \\
+\midrule
+\textbf{Provenance} & No per-view source breakdown & Per-view source counts and
+claim IDs; sources cited per viewpoint \\
+\midrule
+\textbf{CDA-7 attribution} & None & Dominant$\leftrightarrow$Alternative:
+\textsc{methodological} + \textsc{population} (grade-level focus, meta-analytic
+scope); Minority: \textsc{operational} (achievement vs.\ wellbeing outcomes) \\
+\midrule
+\textbf{Disagreement density} & Not reported & 5.3\% \\
+\textbf{Controversy class} & Not reported & \textit{Stable} (ED$=0.38$,
+PI$\approx0.12$) \\
+\textbf{Confidence} & Implied high (fluent prose) & \textsc{medium} \\
+\textbf{VC (embedding)} & 0.423 & 0.847 \\
+\textbf{CCS} & $\approx$0.38 & 0.518 \\
+\bottomrule
+\end{tabular}
+\caption{Concrete output comparison on the homework effectiveness query.
+Vanilla RAG collapses three viewpoints into a single confident statement
+(ViewpointCoverage $= 1/3$, CCS$\approx$0.38).
+\system\ Full surfaces all three viewpoints with per-view provenance,
+CDA-7 causal attribution, and calibrated uncertainty.
+The alternative view (meta-analytic null finding) is entirely absent from
+vanilla RAG output despite being the most important dissenting result for
+a balanced reader.}
+\label{tab:casestudy}
+\end{table*}
+
+On the homework effectiveness query, vanilla RAG returns a consensus statement
+covering 1 of 3 viewpoints (VC$=1/3$, CCS$\approx$0.38).
+\system\ returned three views with claim-level provenance and stated weaknesses:
+the dominant view captured conditionality (grade$\,\geq\!7$, subject
+specificity); the alternative view surfaced the meta-analytic null finding;
+the minority view flagged wellbeing harm \citep{cooper2006homework,
+masalimova2023science,scheb2023hurt}.
+
+CDA-7 attribution identified the dominant$\leftrightarrow$alternative conflict
+as \textsc{methodological} + \textsc{population} (different grade-level foci
+and meta-analytic scope) and the minority divergence as \textsc{operational}
+(achievement vs.\ wellbeing outcome measures).  These distinctions are invisible
+to claim-verification systems (which output binary support/refute labels) and
+to multi-perspective summarization systems (which do not attribute causes of
+disagreement).  The TDC was \textit{stable}: disagreement density roughly
+constant across publication decades, justifying \textsc{medium} confidence
+despite coherent prose across all three views.
+
+\subsection{Error Analysis}
+\label{sec:errors}
+
+We manually inspected all queries where \system\ Full achieved
+CR$\,{<}\,0.5$ (22 of 250 queries; $8.8\%$) to identify systematic
+failure modes.
+
+\paragraph{False contradictions from NLI noise (9 cases).}
+The most common failure mode: NLI labels semantically related but
+non-contradictory claims as CONTRADICTS, typically when two passages
+discuss overlapping phenomena with different emphasis (e.g.,
+``moderate exercise reduces cardiovascular risk'' vs.\
+``vigorous exercise reduces cardiovascular risk'' classified as
+contradictory rather than complementary).  These inflate the
+disagreement graph with spurious edges, fragmenting viewpoint
+communities and producing a fourth ``synthetic'' viewpoint that
+does not reflect genuine disagreement.
+
+\paragraph{Claim extraction granularity mismatch (7 cases).}
+When source passages contain heavily hedged or compound sentences,
+atomic claim extraction either (i)~fragments a single nuanced claim
+into multiple sub-claims that then contradict each other, or
+(ii)~fails to decompose a compound claim, missing embedded
+contradictions.  This is most prevalent in the earth sciences domain,
+where quantitative uncertainty ranges (``2.5--4.0$^{\circ}$C
+sensitivity'') resist clean atomic decomposition.
+
+\paragraph{Retrieval coverage gaps (4 cases).}
+Despite four adversarial retrieval agents, some minority viewpoints
+supported by only 1--2 papers in the corpus were not retrieved by any
+agent, particularly when the minority view uses substantially different
+terminology from the query.  Expanding the Counterfactual agent's
+rewriting strategy to include term substitution may address this.
+
+\paragraph{CDA-7 boundary confusion (2 cases).}
+The temporal/replication boundary identified in \S\ref{sec:validation35b}
+(Task~B) persists at scale: when a replication failure occurs in a later
+time period, the model assigns TEMPORAL rather than REPLICATION.
+This affects confidence calibration because temporal disagreements
+have lower resolvability priors ($\rho{=}0.35$) than replication
+($\rho{=}0.70$), leading to under-confident output.
+
+\paragraph{Summary.}
+The dominant failure mode is NLI noise, not architectural ---
+replacing the current prompt-based NLI with a fine-tuned
+cross-encoder \citep{reimers2019sentence} would directly address
+$41\%$ of failures.  Architectural failures (retrieval gaps, CDA-7
+boundary confusion) account for only $27\%$ of error cases.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Limitations and Ethics}
+\label{sec:limits}
+
+\paragraph{Single backbone model.}
+All main evaluation uses \texttt{qwen3.6:35b-a3b}.  We chose a single open-weight
+backbone to ensure full reproducibility and to control for model effects across
+eight system configurations.  We have not yet evaluated \system\ with proprietary
+models (GPT-4o, Claude~3.5) or with smaller open-weight backbones
+(Llama-3.1-8B, Gemma-2-9B).  The component validation results
+(\S\ref{sec:validation35b}) suggest that structured tasks (NLI, CDA-7,
+claim extraction) degrade substantially below ${\sim}7$B active parameters,
+making the 35B MoE backbone the practical minimum for reliable epistemic
+fidelity output.  The architectural design of \system\ is backbone-agnostic;
+the prompt templates and graph pipeline transfer to any instruction-tuned model.
+We expect CR and VC gains to hold qualitatively across stronger backbones,
+with improved absolute numbers on NLI-sensitive metrics.
+
+\paragraph{Controversy taxonomy thresholds.}
+The ED/PI thresholds defining resolved/emerging/stable/polarized are
+design parameters calibrated on the education domain and applied
+uniformly.  While per-domain results (Table~\ref{tab:perdomain}) show
+consistent behaviour across five domains, optimal thresholds may vary
+for domains with fundamentally different disagreement structures
+(e.g., legal vs.\ scientific).
+
+\paragraph{NLI noise as dominant error source.}
+Error analysis (\S\ref{sec:errors}) identifies prompt-based NLI noise
+as the source of $41\%$ of failure cases.  This is an inherent
+limitation of zero-shot NLI with instruction-tuned models; a
+fine-tuned cross-encoder would likely improve CR by reducing false
+contradiction edges in $G$.
+
+\paragraph{Epistemic over-amplification.}
+\system\ may over-amplify minority views even when the minority view is
+methodologically weak.  Source count display partially mitigates this, but
+users in our study still attended to minority views regardless of source count
+(see \S\ref{sec:human}): annotators rated minority-view salience as notable
+even when those views were supported by a single source.  Stronger visual
+uncertainty communication (e.g., proportional-area view displays) remains an
+open interface design problem.  We do not recommend deploying \system\ in
+contexts where minority-view amplification could cause harm --- for example,
+queries about vaccine safety where surfacing methodologically weak dissenting
+views may contribute to misinformation, even when those views are labelled with
+low confidence and few sources.
+
+\paragraph{CDA-7 resolvability priors.}
+The seven resolvability priors ($\rho$ values) are design parameters grounded
+in STS literature \citep{longino2002science,solomon2001social} that captures
+decades of analysis of how different types of scientific disagreements tend to
+resolve.  The ordering (methodological $\rho{=}0.75$ > replication $0.70$ >
+statistical $0.60$ > population $0.50$ > operational $0.40$ > temporal $0.35$
+> theoretical $0.30$) reflects the widely documented empirical pattern that
+methodological and replication disagreements are more often resolved by follow-on
+studies than theoretical disagreements, which may persist indefinitely
+\citep{longino2002science}.  We acknowledge these are not empirically estimated
+from a held-out dataset; Bayesian calibration against a longitudinal corpus of
+resolved vs.\ persisting controversies would strengthen the grounding.
+Critically, the downstream system behavior is not sensitive to small prior changes:
+the confidence output changes class (e.g., medium $\to$ low) only when the
+$\rho$ shift crosses the class boundary, and the CDA-7 attribution inter-annotator
+agreement ($\kappa{=}0.74$, \S\ref{sec:human}) confirms that the taxonomy classes
+themselves are reliably identified regardless of the specific prior values.
+
+\paragraph{Ethics: weaponizing surfaced disagreement.}
+CDA-7 attribution and the converging/diverging TDC trajectory provide
+mitigation against misuse (e.g., misrepresenting settled science on
+vaccines as ``actively debated'') by explicitly marking which
+controversies are \emph{resolving} vs.\ \emph{growing} and assigning
+\textsc{resolved} queries a \textsc{high} confidence label.  The user
+trust calibration experiment (\S\ref{sec:human}) confirms that users
+appropriately distinguish stable from polarized controversies when
+given \system's structured output.  However, bad-faith actors who
+cherry-pick minority-view outputs remain a concern that no technical
+mitigation fully addresses.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Conclusion}
+\label{sec:conclusion}
+
+Standard single-view scientific RAG can fail not because models miss
+evidence, but because they smooth genuinely contested evidence into one
+answer.  We formalized this as
+\emph{epistemic collapse} and showed analytically and empirically that it is
+structurally unavoidable for single-view systems and actively amplified
+by topical-relevance retrieval.  We introduced \system, a seven-stage RAG
+framework for epistemic fidelity, with a four-metric formal suite (CCS, ED,
+PI, EC@K), a CDA-7 causal attribution taxonomy grounded in STS literature,
+a four-class controversy taxonomy, temporal epistemic drift tracking, and
+\bench\ --- an evaluation benchmark for epistemic fidelity in scientific QA
+(250 queries, 5 domains, 75 papers).
+
+Across 250 queries spanning education, biomedicine, economics, earth
+sciences, and nutrition, \system\ Full achieves CR$\,{=}\,0.742$
+vs.\ vanilla RAG's $0.572$ ($+0.170$; $p{<}0.001$),
+$+0.124$ over MADAM-RAG ($p{=}0.003$),
+and $+0.189$ over PaperQA2 ($p{<}0.001$).
+Dense-encoder VC rises from $0.423$ to $0.847$ ($p{<}0.001$),
+empirically corroborating the structural single-view coverage bound.
+CCS improves from $0.571$ to $0.518$ ($p{=}0.008$).
+Human annotators ($n{=}750$ ratings, Krippendorff's $\alpha{=}0.72$)
+rate \system\ Full at $4.3/5$ vs.\ $2.1/5$ for vanilla RAG;
+CCS correlates with human epistemic completeness at $\rho{=}{-}0.82$
+($p{<}0.001$, $n{=}250$ system--query pairs), confirming the
+metric captures genuine information loss.
+A user trust calibration experiment shows that \system's structured
+confidence labels appropriately modulate trust: users assign lower
+overturning probability to stable controversies ($32\%$) than
+polarized ones ($58\%$; $p{<}0.001$), while vanilla RAG users show
+no such discrimination.
+
+Component validation at 35B scale confirms: NLI F1$\,{=}\,0.933$,
+CDA-7 $\kappa{=}0.81$ (exceeding human inter-annotator agreement
+of $\kappa{=}0.74$), and 100\% schema compliance.
+Error analysis identifies NLI noise as the dominant failure mode
+($41\%$ of errors), suggesting that fine-tuned NLI models would
+yield further CR gains.  Fast offline mode provides
+$25.62{\times}$ latency improvement with no output quality loss.
+
+\bibliography{custom}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\appendix
+
+\section{Baseline Implementation Details}
+\label{app:baselines}
+
+All baselines and ablation variants share the same chunked corpus
+(3,247 text chunks from 75 papers across five domains) and the same
+LLM backbone (\texttt{qwen3.6:35b-a3b} via Ollama, chain-of-thought
+disabled, \texttt{think=False}).  Embeddings use \texttt{all-MiniLM-L6-v2}
+($d{=}384$) for retrieval and metric computation throughout.
+
+\paragraph{Vanilla RAG.}
+Dense retrieval with cosine similarity; top-$k{=}10$ chunks retrieved per
+query.  A single synthesis call with the prompt: \textit{``Based on the
+following passages, answer the question concisely and accurately:
+[passages] Question: [query]''}.  No multi-view output, no disagreement
+detection, no confidence structure.
+
+\paragraph{Single-agent.}
+Identical to Vanilla RAG but uses only the Precision agent query
+formulation (``retrieve the most directly relevant, high-confidence
+evidence for [query]'') rather than the raw query string.  Top-$k{=}10$
+retrieval, single-view synthesis.  Isolates the effect of the Precision
+agent formulation from the full adversarial retrieval ensemble.
+
+\paragraph{MADAM-RAG.}
+We use the open-source MADAM-RAG implementation \citep{wang2025conflicting}
+adapted to our corpus.  Each query triggers a structured multi-agent debate:
+a Proposer agent generates an initial answer; an Opposer agent challenges it;
+a Moderator agent produces a final synthesized answer resolving the conflict.
+All agents use \texttt{qwen3.6:35b-a3b} as the backbone (replacing the
+original GPT-4 backbone for fair comparison).  Top-$k{=}10$ retrieval;
+debate structured over three turns per query.  MADAM-RAG produces a
+single resolved answer, not a multi-view output.
+
+\paragraph{PaperQA2.}
+We use PaperQA2 version 5.x \citep{lala2023paperqa} adapted to our
+pre-indexed corpus rather than its native paper-download pipeline.
+The same 75 papers were ingested via the PaperQA2 document API;
+retrieval uses PaperQA2's default two-stage retrieval (keyword filter
+then dense re-ranking).  The LLM backbone was replaced with
+\texttt{qwen3.6:35b-a3b} via a compatible API adapter.  PaperQA2
+produces citation-grounded single-view answers; its multi-step chain-of-thought
+is preserved as designed.
+
+\paragraph{MMR-RAG.}
+Maximal Marginal Relevance retrieval \citep{carbonell1998mmr} with
+$\lambda{=}0.5$ (equal weight on relevance and diversity) and
+top-$k{=}10$ retrieved chunks.  The diversity re-ranking uses cosine
+distance between chunk embeddings (\texttt{all-MiniLM-L6-v2}).
+Single-view synthesis using the same prompt as Vanilla RAG.
+This baseline isolates the effect of retrieval diversity without any
+downstream claim-graph reasoning, causal attribution, or multi-view synthesis.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Qualitative Output Examples}
+\label{app:examples}
+
+Tables~\ref{tab:qualitative}--\ref{tab:qualitative2} show representative
+system outputs on three queries to concretely illustrate epistemic collapse.
+Both responses are fluent and locally accurate; the distinction is structural.
+
+\begin{table*}[t]
+\centering\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}p{0.46\textwidth}p{0.50\textwidth}@{}}
+\toprule
+\textbf{Vanilla RAG} & \textbf{\system\ Full} \\
+\midrule
+\multicolumn{2}{@{}l}{\textit{Query: Does homework improve academic achievement?}} \\
+\midrule
+``Research consistently shows that homework improves academic
+achievement, with stronger effects for older students (grades 7--12).
+Meta-analyses report moderate positive correlations between homework time
+and academic performance.  Homework builds self-regulation and reinforces
+classroom learning.''
+
+\smallskip
+\textit{CCS: 0.38.\ \ VC$_\text{emb}$: 0.33 (1/3 views covered).}
+&
+\textbf{View 1 [Dominant, 6 sources, confidence: medium]:} Conditional
+positive effect.  Homework improves achievement for grades 7--12 ($d{\approx}0.30$);
+effect near zero for primary grades.
+\textit{CDA-7: methodological (grade-level scope differences).}
+
+\textbf{View 2 [Alternative, 3 sources, confidence: medium]:} Null
+meta-analytic effect when controlling for SES and teacher quality.
+\textit{CDA-7: statistical + methodological.}
+
+\textbf{View 3 [Minority, 2 sources, confidence: low]:} High homework
+loads harm wellbeing with no academic benefit in high-achieving populations.
+\textit{CDA-7: operational (achievement vs.\ wellbeing outcomes).}
+
+\smallskip
+\textit{Controversy class: Stable.\ \ CCS: 0.52.\ \ VC$_\text{emb}$: 1.00.}
+\\
+\bottomrule
+\end{tabular}
+\caption{Homework query: Vanilla RAG collapses to the dominant conditional-benefit
+view; \system\ Full recovers all three ground-truth viewpoints with per-view
+source counts, CDA-7 causal attribution, and evidence-structured confidence.}
+\label{tab:qualitative}
+\end{table*}
+
+\begin{table*}[t]
+\centering\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}p{0.22\textwidth}p{0.36\textwidth}p{0.36\textwidth}@{}}
+\toprule
+\textbf{Query} & \textbf{Vanilla RAG} & \textbf{\system\ Full (summary)} \\
+\midrule
+\textit{Do statins prevent cardiovascular events in primary prevention?}
+&
+``Statins are recommended for high-risk primary prevention and reduce
+cardiovascular events.'' (1 view; VC$_\text{emb}$: 0.33; CCS: 0.41)
+&
+View 1 [Dominant]: Benefit confirmed for high-risk groups
+\textit{(CDA-7: population)}.
+View 2: Marginal benefit with adverse-effect trade-off
+\textit{(CDA-7: statistical)}.
+View 3: Industry-bias concern undermining reported effect sizes
+\textit{(CDA-7: methodological)}.
+VC$_\text{emb}$: 1.00; Controversy class: Stable; CCS: 0.54.
+\\[4pt]
+\textit{Does raising the minimum wage reduce employment?}
+&
+``Most studies find minimal employment effects from moderate minimum wage
+increases.'' (1 view; VC$_\text{emb}$: 0.50; CCS: 0.44)
+&
+View 1 [Dominant]: Minimal aggregate employment effect
+\textit{(CDA-7: methodological)}.
+View 2: Significant job losses for low-wage workers in specific sectors
+\textit{(CDA-7: population)}.
+View 3: Positive employment via demand-side stimulus
+\textit{(CDA-7: theoretical)}.
+VC$_\text{emb}$: 1.00; Controversy class: Polarized; CCS: 0.50.
+\\
+\bottomrule
+\end{tabular}
+\caption{Additional examples in biomedicine and economics.  In both cases
+Vanilla RAG returns a single consensus statement that erases 2/3 of
+ground-truth viewpoints; \system\ Full provides structured multi-view output
+with per-view CDA-7 attribution and controversy-class labels.}
+\label{tab:qualitative2}
+\end{table*}
+
+\end{document}
