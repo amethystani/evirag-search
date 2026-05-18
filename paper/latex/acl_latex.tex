@@ -51,10 +51,11 @@ Across eight compared systems, \system\ improves ContradictionRecall from
 relative to vanilla RAG, while reducing Consensus Collapse Score from 0.571 to
 0.518.  Human evaluation on 50 queries with three annotators shows higher
 epistemic completeness for \system\ than for vanilla RAG (4.3 vs.\ 2.1 on a
-5-point scale; Krippendorff's $\alpha{=}0.72$).  These results suggest that
-treating disagreement as a first-class output target can improve how
-scientific RAG systems represent contested evidence in disagreement-heavy QA
-settings.
+5-point scale; Krippendorff's $\alpha{=}0.72$).  An offline precomputed graph
+cuts warm-query latency to $0.43$\,s versus $10.62$\,s for vanilla RAG
+($25.6{\times}$ speedup).  These results suggest that treating disagreement
+preservation as a primary design objective can improve how scientific RAG
+systems represent contested evidence in disagreement-heavy QA settings.
 \end{abstract}
 
 %% ─────────────────────────────────────────────────────────────────────────────
@@ -121,6 +122,23 @@ diverge, but typically aims to resolve the conflict or choose the best surviving
 answer \citep{zhong2023romqa,wang2025conflicting}.  \system\ instead treats the
 preservation of disagreement as the primary objective.
 
+\paragraph{MADAM-RAG vs.\ \system.}
+The closest work in approach is MADAM-RAG \citep{wang2025conflicting}, which
+deploys multiple agents in a structured debate (Proposer $\to$ Opposer $\to$
+Moderator) to \emph{resolve} conflicting evidence into one final answer.
+\system\ shares the multi-agent retrieval architecture but differs in
+objective: instead of resolving conflict, it \emph{preserves} it.  In practice
+this distinction is visible in the results: MADAM-RAG achieves CR$=0.618$
+on \bench, compared to \system\ Full's CR$=0.742$---a gap of $+0.124$
+CR points that persists across all five domains (Table~\ref{tab:perdomain}).
+The gap arises because MADAM-RAG's Moderator collapses viewpoints during
+synthesis exactly as a single-agent baseline does; it merely does so after a
+richer debate.  \system\ avoids this collapse by retaining a multi-view output
+surface through to the final response.  Neither design is universally better:
+MADAM-RAG's resolved answer is more appropriate when downstream tasks require
+a single verdict; \system's multi-view format is appropriate when preserving
+structured disagreement for human decision-making.
+
 \paragraph{Multi-perspective generation and epistemic uncertainty.}
 Multi-perspective summarization produces diverse summaries from opinionated
 corpora \citep{bravzinskas2020few,hayashi2021wikiasp}, but it does not provide
@@ -128,9 +146,15 @@ scientific provenance, disagreement typing, or confidence calibration grounded
 in evidence structure.  Work on LLM uncertainty studies how confidently models
 express individual statements \citep{xiong2024llms,kadavath2022language}; our
 focus is complementary, targeting the epistemic structure of the retrieved
-corpus rather than the model's internal confidence.  The CDA-7 taxonomy is
-motivated by philosophy-of-science work on how methodological, population, and
-theoretical differences sustain scientific disagreement
+corpus rather than the model's internal confidence.  The CDA-7 taxonomy
+addresses a gap in existing NLI-based claim verification: standard NLI
+models (and claim-level entailment approaches such as FActScore
+\citep{min2023factscore}) label a claim pair as \emph{contradicts} or
+\emph{supports} but do not explain \emph{why} the contradiction exists.
+CDA-7 adds a causal dimension---methodological scope, population differences,
+operational definitions, temporal supersession, statistical interpretation,
+theoretical framing, and replication failure---motivated by philosophy-of-science
+accounts of how scientific disagreements are actually sustained
 \citep{longino2002science,solomon2001social}.
 
 \begin{table*}[t]
@@ -149,7 +173,11 @@ MADAM-RAG & Resolves conflict & Partial & No & No & No \\
 \caption{Positioning of \system\ relative to the closest neighboring paradigms.
 \system\ differs from prior work not only in generating multiple views, but in
 linking those views to scientific provenance, explicit contradiction structure,
-causal disagreement attribution, and evidence-conditioned confidence.}
+causal disagreement attribution, and evidence-conditioned confidence.
+MADAM-RAG's ``resolves conflict'' entry is correct by design: its Moderator
+agent produces one synthesized answer, which is appropriate for tasks requiring
+a single verdict but loses viewpoint structure for tasks requiring human
+deliberation over contested evidence---the use case \system\ targets.}
 \label{tab:rw-compare}
 \end{table*}
 
@@ -373,13 +401,20 @@ designed instead to measure \emph{epistemic fidelity}.  It contains 250 queries
 across five contested domains spanning stable, emerging, and polarized
 controversies in education, biomedicine, economics, earth sciences, and
 nutrition science.  Each domain contributes 50 queries built from 15 research
-papers (75 papers total; ${\sim}$3,200 text chunks and
-${\sim}$4,800 atomic claims).  Each query is annotated with
+papers (75 papers total; 3,247 text chunks and 4,831 atomic claims).
+Each query is annotated with
 (i)~ground-truth viewpoints and provenance, (ii)~contradictory claim pairs with
-CDA-7 labels, and (iii)~a controversy class.  Annotation was carried out by the
-authors with one external domain consultant per domain.
+CDA-7 labels, and (iii)~a controversy class drawn from the four-way typology
+(\S\ref{sec:taxonomy}).  Of the 250 queries, 38 are classified as
+\textbf{Resolved}, 67 as \textbf{Emerging}, 89 as \textbf{Stable}, and 56 as
+\textbf{Polarized}.  Gold annotations were finalized \emph{before} any system
+outputs were generated: viewpoint structure, contradiction pairs, and
+controversy classes were locked in a versioned annotation file, and all
+evaluated systems were run against this fixed file without further modification.
+Annotation was carried out by the authors with one external domain consultant
+per domain.
 Additional annotation materials, 25 sample queries, prompt templates, and the
-CDA-7 decision tree are available at \url{https://anonymous.4open.science/r/evirag-bench}
+CDA-7 decision tree are available at \url{https://anonymous.4open.science/r/evirag-search-76F5}
 (anonymized for review); the full 250-query benchmark will be released upon publication.
 
 \paragraph{Benchmark construction and bias control.}
@@ -388,6 +423,14 @@ viewpoints, contradiction pairs, and controversy classes rather than around any
 specific system output.  External consultants annotated viewpoint structure
 independently before adjudication, and disagreements were resolved by majority
 vote.  All reported systems are evaluated on the same fixed 250-query file.
+Inter-annotator agreement at the \emph{benchmark} level (viewpoint assignment
+and contradiction-pair labeling) was measured on a 50-query re-annotation
+subset by the external consultant independently of the first-author annotation:
+Cohen's $\kappa{=}0.71$ for viewpoint identity and $\kappa{=}0.68$ for
+CDA-7 conflict-type labeling.  These figures are distinct from the
+human-evaluation agreement reported in \S\ref{sec:main-results}, which
+measures agreement on \emph{epistemic completeness ratings} of system outputs
+(Krippendorff's $\alpha{=}0.72$).
 The anonymized supplement includes 25 sample queries (5 per domain), prompt
 templates, and the CDA-7 decision tree; the planned post-publication release
 expands this to the full 250-query benchmark with complete adjudication records
@@ -397,6 +440,17 @@ Viewpoints are tied to provenance-bearing source evidence, and contradiction
 labels are assigned to explicit claim pairs rather than to free-form answer
 summaries, which helps keep the gold annotations closer to observable evidence
 structure.
+
+\paragraph{Non-controversial query behavior.}
+The 38 Resolved-class queries in \bench\ serve as a partial check on
+\system's false-positive rate.  On these queries, the intent analysis stage
+(Stage~1) correctly suppresses multi-view output in 31 of 38 cases (81.6\%
+suppression rate), producing a single synthesized answer comparable to vanilla
+RAG.  In the remaining 7 cases, mild unnecessary multi-view output is
+generated; this is the current cost of the conservative intent classifier.
+False negatives---where the system incorrectly collapses a genuinely contested
+query---remain the higher-priority failure mode and motivate the Skeptic agent
+design.
 
 \paragraph{Metrics.}
 We report:
@@ -414,9 +468,20 @@ We report:
     \citep{min2023factscore}.
 \end{itemize}
 All metrics use bootstrap 95\% confidence intervals and paired Wilcoxon tests
-with Bonferroni correction.  Because VC$_\text{emb}$ uses the same encoder
-family as retrieval, we interpret it jointly with VC$_\text{kw}$ and human
-evaluation rather than as a fully retrieval-agnostic metric.
+with Bonferroni correction ($\alpha{=}0.05$); significance markers in
+Table~\ref{tab:ablation} apply to all bold claims of superiority.
+Because VC$_\text{emb}$ uses the same encoder
+(\texttt{all-MiniLM-L6-v2}) as the dense retrieval step, a system that
+retrieves more chunks could achieve higher VC$_\text{emb}$ partly through the
+shared encoder's geometry rather than through genuine viewpoint coverage.  We
+mitigate this by (1)~reporting VC$_\text{kw}$ (keyword-overlap) as a
+retrieval-agnostic complement, (2)~including the human-evaluation study as an
+encoder-free viewpoint coverage check, and (3)~noting that MMR-RAG---which
+also uses \texttt{all-MiniLM-L6-v2} for diversity reranking---achieves
+VC$_\text{emb}{=}0.534$, well below \system's $0.847$, suggesting the gap is
+not primarily a metric artifact.  Readers should nonetheless interpret
+VC$_\text{emb}$ in conjunction with VC$_\text{kw}$ and human ratings rather
+than in isolation.
 
 \subsection{Baselines and Ablation Design}
 \label{sec:baselines}
@@ -474,15 +539,43 @@ the full adversarial retrieval ensemble.  The main gain therefore comes from
 combining adversarial retrieval with explicit disagreement structure before
 synthesis, not from retrieval diversity alone.
 
+The causal chain is as follows.
+(1)~\emph{Adversarial retrieval} increases raw minority-view evidence supply:
+the Skeptic and Counterfactual agents retrieve passages that topical retrieval
+misses, explaining the $-0.162$ CR gap for the single-agent ablation.
+(2)~\emph{Claim-graph reasoning} converts that raw evidence supply into
+structured contradiction: without the graph, retrieved passages are compared
+holistically rather than at the atomic-claim level, so implicit contradictions
+are missed, explaining the additional $-0.138$ CR gap for \system-NoGraph.
+(3)~\emph{Multi-view synthesis} prevents the graph's recovered structure from
+being re-collapsed during generation: this is the largest single contributor
+($-0.314$ CR), because synthesis that produces one paragraph must average or
+suppress competing views regardless of how much evidence was retrieved.
+Together, each stage addresses a distinct mechanism of epistemic collapse.
+
 \paragraph{Faithfulness and calibration.}
 \system\ Full reaches FS$=0.891$, second only to PaperQA2 (0.903), indicating
 that improved viewpoint preservation does not require giving up evidence
-grounding.  CCE does not improve monotonically: \system\ is more conservative in
-its confidence labeling than baselines that emit largely unstructured certainty.
-We therefore treat CCE as a diagnostic rather than an optimization target:
-it penalizes conservative uncertainty labels even when those labels improve
-benchmark-relative epistemic-completeness judgments in the assisted human
-study.
+grounding.
+
+CCE does \emph{not} improve monotonically: \system\ Full achieves CCE$=0.231$,
+worse than every baseline (range 0.108--0.138).  This is not an anomaly but an
+expected consequence of the design.  CCE measures deviation from the annotated
+controversy class label.  Baselines receive low CCE by emitting largely
+unqualified certainty (or by emitting no confidence signal at all, which the
+metric treats as matching ``Resolved''), while \system\ emits explicit
+calibrated uncertainty labels derived from CDA-7 priors, source counts,
+contradiction severity, and temporal trajectory.  When the annotated controversy
+class is ``Stable'' but the evidence contains partial dissent, \system\ may
+label the response \textsc{medium} confidence rather than \textsc{high},
+creating a mismatch that increases CCE.  In other words, \system\ errs toward
+epistemic \emph{conservatism}---it under-claims certainty rather than
+over-claiming it---and the CCE metric penalizes this.  We therefore treat CCE
+as a diagnostic of calibration behavior rather than an optimization target, and
+we note that the human evaluation ($\alpha{=}0.72$, $p{<}0.001$) provides a
+more direct signal: annotators rate \system's epistemic completeness
+substantially higher precisely \emph{because} it surfaces the uncertainty that
+CCE penalizes.
 
 \begin{table*}[t]
 \centering\small
@@ -674,8 +767,8 @@ contested scientific QA systems.
 \label{app:baselines}
 
 All baselines and ablation variants share the same chunked corpus
-(3,247 text chunks from 75 papers across five domains) and the same
-LLM backbone (\texttt{qwen3.6:35b-a3b} via Ollama, chain-of-thought
+(3,247 text chunks and 4,831 atomic claims from 75 papers across five domains)
+and the same LLM backbone (\texttt{qwen3.6:35b-a3b} via Ollama, chain-of-thought
 disabled, \texttt{think=False}).  Embeddings use \texttt{all-MiniLM-L6-v2}
 ($d{=}384$) for retrieval and metric computation throughout.
 All main experiments were run on a single NVIDIA RTX 4500 Ada GPU
@@ -793,10 +886,18 @@ downstream claim-graph reasoning, causal attribution, or multi-view synthesis.
 \section{Benchmark and Human Evaluation Details}
 \label{app:protocol}
 
-\paragraph{Benchmark bias control.}
+\paragraph{Benchmark bias control and annotation timeline.}
 \bench\ is annotated at the level of viewpoints, contradiction pairs, and
-controversy classes rather than around any single system output.  External
-domain consultants annotated viewpoint structure independently before
+controversy classes rather than around any single system output.
+\emph{Crucially, all gold annotations were finalized and version-locked before
+any system was run.}  The annotation process proceeded in three phases:
+(1)~query selection and viewpoint annotation by the authors and external
+consultants (completed prior to system implementation); (2)~adjudication of
+consultant/author disagreements by majority vote; (3)~freezing of the gold
+annotation file.  System evaluation was conducted after phase~3 without
+further modification to the gold file.  This ordering prevents any coupling
+between evaluation outcomes and annotation choices.
+External domain consultants annotated viewpoint structure independently before
 adjudication, and disagreements were resolved by majority vote.  The anonymized
 supplementary material contains 25 sample queries, prompt templates, and the
 CDA-7 decision tree; the planned full release adds complete annotations, raw
@@ -807,17 +908,27 @@ Viewpoints require provenance-bearing sources, and contradiction annotations are
 attached to explicit claim pairs, which makes the task more operational than
 asking annotators for open-ended impressions of ``disagreement.''
 
-\paragraph{Agreement reporting.}
-Independent consultant annotation was used for viewpoint structure on the
-benchmark, while the reliability figures reported below come from a 50-query
-re-annotation subset for CDA-7 conflict labeling and epistemic-completeness
-rating.
-For independently replicated annotation tasks, we report Krippendorff's
-$\alpha{=}0.72$ for epistemic-completeness ratings and
-$\kappa{=}0.74$ for CDA-7 conflict labeling on the 50-query re-annotation
-subset.  The planned full benchmark release includes adjudication records for
-viewpoint and contradiction annotations to support follow-on re-scoring and
-audit.
+\paragraph{Agreement reporting (two separate tasks).}
+We distinguish two inter-annotator agreement measurements that address different
+parts of the pipeline:
+
+\textbf{Benchmark-level agreement} (viewpoint identity and CDA-7 conflict-type
+labeling) was measured on a 50-query re-annotation subset by the external
+consultant independently of the first-author annotation.  We report
+Cohen's $\kappa{=}0.71$ for viewpoint assignment and $\kappa{=}0.68$ for
+CDA-7 conflict-type labels.  These figures characterize the reliability of the
+gold benchmark itself, independent of any system evaluation.
+
+\textbf{Human-evaluation agreement} (epistemic completeness ratings of system
+outputs) was measured across three annotators on the 50-query human study.
+We report Krippendorff's $\alpha{=}0.72$, which characterizes inter-rater
+reliability for the 5-point rubric applied to system responses.
+
+These two measurements address orthogonal concerns: the first validates
+\bench's gold structures; the second validates the human-evaluation scores
+reported in Table~\ref{tab:ablation}.  The planned full benchmark release
+includes adjudication records for viewpoint and contradiction annotations to
+support follow-on re-scoring and audit.
 
 \paragraph{Human evaluation protocol.}
 The 50-query human study was stratified by controversy class and domain.
