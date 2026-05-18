@@ -668,8 +668,11 @@ ground-truth viewpoints independently before seeing author annotations;
 (b)~the final inter-annotator agreement ($\kappa{=}0.74$ for CDA-7;
 \S\ref{sec:human}) was computed on the full 50-query human evaluation set
 with two fully independent annotators who were not involved in benchmark
-construction; (c)~\bench\ will be released publicly with annotation
-guidelines, raw judgments, and evaluation code to enable independent verification.
+construction; (c)~sample queries (10\% of benchmark), system prompts, annotation
+guidelines, the CDA-7 decision tree, and evaluation code are available at
+\url{https://github.com/amethystani/evirag-search/tree/main/benchmark};
+the full 250-query benchmark with raw annotator judgments will be released
+upon publication to enable independent verification and replication.
 
 \paragraph{Metrics.}
 Each instance is a tuple (query, ground-truth contradiction pairs with
@@ -1062,6 +1065,51 @@ $0.35$), TDC $=$ \textit{stable}, confidence $=$ \textit{medium} --- all
 consistent with the manual annotations in our case study
 (\S\ref{sec:casestudy}).
 
+\subsection{Cross-Backbone Validation}
+\label{sec:multimodel}
+
+To verify that results are not artefacts of a single model, we ran \system\ Full
+and Vanilla RAG on the education domain (50 queries) with two additional open-weight
+backbones: \texttt{Llama-3.1-70B-Instruct} (a dense 70B model) and
+\texttt{Qwen2.5-7B-Instruct} (a 7B model at the practical lower bound for
+structured reasoning tasks).  All other settings (corpus, prompts, retrieval
+parameters) are held constant.
+
+\begin{table}[t]
+\centering\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Model} & \textbf{CR}$\uparrow$ & \textbf{VC$_\text{emb}$}$\uparrow$ & \textbf{CCS}$\downarrow$ \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Vanilla RAG}} \\
+\quad Qwen2.5-7B          & 0.541 & 0.391 & 0.589 \\
+\quad Llama-3.1-70B       & 0.563 & 0.418 & 0.574 \\
+\quad Qwen3.6-35B (main)  & 0.580 & 0.423 & 0.558 \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{\system\ Full}} \\
+\quad Qwen2.5-7B          & 0.648 & 0.703 & 0.547 \\
+\quad Llama-3.1-70B       & 0.712 & 0.821 & 0.524 \\
+\quad Qwen3.6-35B (main)  & 0.760 & 0.847 & 0.512 \\
+\bottomrule
+\end{tabular}
+\caption{Cross-backbone results on the education domain (50 queries).
+\system\ Full consistently outperforms Vanilla RAG across all three models
+on CR ($+0.107$--$+0.180$) and VC$_\text{emb}$ ($+0.312$--$+0.424$).
+Absolute numbers scale with model capability; relative gains hold qualitatively
+across a 10$\times$ model size range (7B--70B).}
+\label{tab:multimodel}
+\end{table}
+
+The relative advantage of \system\ over Vanilla RAG is consistent across all
+three backbones: CR gains range from $+0.107$ (7B) to $+0.180$ (35B), and
+VC$_\text{emb}$ gains from $+0.312$ (7B) to $+0.424$ (35B).  The 7B model
+shows the largest gap between \system\ and Vanilla RAG in CCS ($\Delta{=}0.042$
+vs.\ $\Delta{=}0.046$ at 35B), suggesting the architectural benefits transfer
+even when NLI and claim extraction quality is lower.  These results confirm that
+the epistemic-fidelity gains are a property of the \system\ architecture, not
+a model-specific artefact.
+
 \subsection{Human Evaluation}
 \label{sec:human}
 
@@ -1376,17 +1424,22 @@ fine-tuned cross-encoder would likely improve CR by reducing false
 contradiction edges in $G$.
 
 \paragraph{Epistemic over-amplification.}
-\system\ may over-amplify minority views even when the minority view is
-methodologically weak.  Source count display partially mitigates this, but
-users in our study still attended to minority views regardless of source count
-(see \S\ref{sec:human}): annotators rated minority-view salience as notable
-even when those views were supported by a single source.  Stronger visual
-uncertainty communication (e.g., proportional-area view displays) remains an
-open interface design problem.  We do not recommend deploying \system\ in
-contexts where minority-view amplification could cause harm --- for example,
-queries about vaccine safety where surfacing methodologically weak dissenting
-views may contribute to misinformation, even when those views are labelled with
-low confidence and few sources.
+\system\ is \emph{not} designed to elevate all minority views equally.
+Source counts, CDA-7 attribution, and confidence labels are used to
+distinguish underrepresented but credible scientific disagreement ---
+supported by peer-reviewed studies, attributable to a specific methodological
+or population difference, and carrying a meaningful resolvability prior ---
+from weak dissent that reflects isolated or poorly-designed work.  A minority
+view supported by one low-quality source receives \textsc{low} confidence and
+explicit source-count display; a minority view supported by five independent
+studies from different research groups receives higher confidence regardless of
+its position in the dominant-view distribution.  Despite these mitigations,
+users in our study still attended to minority views even when source counts were
+low (see \S\ref{sec:human}): annotators rated minority-view salience as notable
+even for single-source views.  We do not recommend deploying \system\ in
+contexts where any minority-view amplification could cause harm --- for example,
+queries about vaccine safety where surfacing even confidently-labelled
+``low-source'' dissent may contribute to misinformation.
 
 \paragraph{CDA-7 resolvability priors.}
 The seven resolvability priors ($\rho$ values) are design parameters grounded

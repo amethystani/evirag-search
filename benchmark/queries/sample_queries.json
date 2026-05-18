@@ -1,0 +1,93 @@
+[
+  {
+    "query_id": "edu_001",
+    "domain": "education",
+    "query": "Does homework improve academic achievement?",
+    "controversy_class": "stable",
+    "ground_truth_viewpoints": [
+      {
+        "viewpoint_id": "V1",
+        "label": "Conditional positive effect",
+        "description": "Homework improves achievement for grades 7-12 (d~0.30); near-zero for primary grades.",
+        "key_sources": ["cooper2006homework"],
+        "cda7_class": "methodological"
+      },
+      {
+        "viewpoint_id": "V2",
+        "label": "Null meta-analytic effect",
+        "description": "No significant overall effect when controlling for SES and teacher quality.",
+        "key_sources": ["masalimova2023science"],
+        "cda7_class": "statistical+methodological"
+      },
+      {
+        "viewpoint_id": "V3",
+        "label": "Wellbeing harm",
+        "description": "High homework loads correlate with stress and reduced wellbeing.",
+        "key_sources": ["scheb2023hurt"],
+        "cda7_class": "operational"
+      }
+    ],
+    "ground_truth_contradictions": [
+      {"claim1_id": "C_edu001_01", "claim2_id": "C_edu001_07", "cda7": "methodological"},
+      {"claim1_id": "C_edu001_03", "claim2_id": "C_edu001_12", "cda7": "statistical"}
+    ]
+  },
+  {
+    "query_id": "edu_002",
+    "domain": "education",
+    "query": "Does homework in primary school benefit young learners?",
+    "controversy_class": "emerging",
+    "ground_truth_viewpoints": [
+      {"viewpoint_id": "V1", "label": "No benefit under age 10", "description": "Meta-analyses consistently find zero or negative effects for primary-grade homework.", "key_sources": ["cooper2006homework"], "cda7_class": "methodological"},
+      {"viewpoint_id": "V2", "label": "Skill-building benefit for specific subjects", "description": "Narrow math practice homework shows small positive effects at grade 3+.", "key_sources": ["masalimova2023science"], "cda7_class": "operational"}
+    ],
+    "ground_truth_contradictions": [
+      {"claim1_id": "C_edu002_02", "claim2_id": "C_edu002_08", "cda7": "operational"}
+    ]
+  },
+  {
+    "query_id": "bio_001",
+    "domain": "biomedicine",
+    "query": "Do statins prevent cardiovascular events in primary prevention patients?",
+    "controversy_class": "stable",
+    "ground_truth_viewpoints": [
+      {"viewpoint_id": "V1", "label": "Benefit confirmed for high-risk", "description": "Statins reduce MACE by ~25% relative risk in high-risk primary prevention populations.", "key_sources": [], "cda7_class": "population"},
+      {"viewpoint_id": "V2", "label": "Marginal benefit with adverse-effect trade-off", "description": "NNT >200 for low-risk patients; myopathy and diabetes risk may outweigh benefit.", "key_sources": [], "cda7_class": "statistical"},
+      {"viewpoint_id": "V3", "label": "Industry-bias concern", "description": "Industry-funded trials show systematically larger effect sizes than independent trials.", "key_sources": [], "cda7_class": "methodological"}
+    ],
+    "ground_truth_contradictions": [
+      {"claim1_id": "C_bio001_01", "claim2_id": "C_bio001_09", "cda7": "population"},
+      {"claim1_id": "C_bio001_04", "claim2_id": "C_bio001_11", "cda7": "methodological"}
+    ]
+  },
+  {
+    "query_id": "eco_001",
+    "domain": "economics",
+    "query": "Does raising the minimum wage reduce employment?",
+    "controversy_class": "polarized",
+    "ground_truth_viewpoints": [
+      {"viewpoint_id": "V1", "label": "Minimal aggregate effect", "description": "Card-Krueger-style difference-in-difference studies find near-zero aggregate employment effects.", "key_sources": [], "cda7_class": "methodological"},
+      {"viewpoint_id": "V2", "label": "Significant sectoral job losses", "description": "Low-wage sectors (fast food, retail) show measurable employment reductions.", "key_sources": [], "cda7_class": "population"},
+      {"viewpoint_id": "V3", "label": "Positive demand-side effect", "description": "Higher wages increase consumer spending, boosting employment.", "key_sources": [], "cda7_class": "theoretical"}
+    ],
+    "ground_truth_contradictions": [
+      {"claim1_id": "C_eco001_02", "claim2_id": "C_eco001_08", "cda7": "methodological"},
+      {"claim1_id": "C_eco001_05", "claim2_id": "C_eco001_13", "cda7": "theoretical"}
+    ]
+  },
+  {
+    "query_id": "nut_001",
+    "domain": "nutrition",
+    "query": "Does saturated fat increase cardiovascular disease risk?",
+    "controversy_class": "stable",
+    "ground_truth_viewpoints": [
+      {"viewpoint_id": "V1", "label": "Strong causal link via LDL", "description": "Saturated fat raises LDL-C, which causally increases CVD risk per Mendelian randomization.", "key_sources": [], "cda7_class": "methodological"},
+      {"viewpoint_id": "V2", "label": "Replacement food matters more than SFA per se", "description": "Replacing SFA with refined carbohydrates does not reduce CVD; replacing with PUFA does.", "key_sources": [], "cda7_class": "operational"},
+      {"viewpoint_id": "V3", "label": "Weak or null effect after confounding adjustment", "description": "Prospective cohort studies with full dietary adjustment find attenuated or null SFA-CVD associations.", "key_sources": [], "cda7_class": "statistical"}
+    ],
+    "ground_truth_contradictions": [
+      {"claim1_id": "C_nut001_01", "claim2_id": "C_nut001_07", "cda7": "methodological"},
+      {"claim1_id": "C_nut001_03", "claim2_id": "C_nut001_10", "cda7": "statistical"}
+    ]
+  }
+]
