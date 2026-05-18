@@ -72,7 +72,7 @@ questions, this behavior can be misleading: the answer may be well-written and
 source-grounded while still erasing materially important disagreement.
 
 \paragraph{Epistemic collapse.}
-We call this failure mode \emph{epistemic collapse}: conversion of structured
+We call this failure mode \emph{epistemic collapse}:\footnote{We use ``epistemic collapse'' as a technical term for the failure mode described here; the term has different meanings in modal epistemology and should not be confused with that usage.} conversion of structured
 multi-view evidence into one response.  Our claim is not that every query needs
 many answers, but that questions with persistent scientific disagreement need an
 output interface that preserves viewpoint structure, provenance, and uncertainty.
@@ -119,8 +119,12 @@ the final response to a single answer
 \citep{wadden2020scifact,wadden2022scifactopen,lala2023paperqa}.  Recent work
 on conflicting evidence and multi-answer QA recognizes that evidence sources may
 diverge, but typically aims to resolve the conflict or choose the best surviving
-answer \citep{zhong2023romqa,wang2025conflicting}.  \system\ instead treats the
-preservation of disagreement as the primary objective.
+answer \citep{zhong2023romqa,wang2025conflicting,xie2024conflictqa}.
+ConflictQA \citep{xie2024conflictqa} addresses conflicting information in QA
+but does not provide causal attribution for disagreements or structured
+multi-view output with per-view confidence.
+\system\ instead treats the preservation of disagreement as the primary
+objective.
 
 \paragraph{MADAM-RAG vs.\ \system.}
 The closest work in approach is MADAM-RAG \citep{wang2025conflicting}, which
@@ -160,14 +164,14 @@ accounts of how scientific disagreements are actually sustained
 \begin{table*}[t]
 \centering\small
 \setlength{\tabcolsep}{5pt}
-\begin{tabular}{@{}lccccc@{}}
+\begin{tabular}{@{}lcccccc@{}}
 \toprule
-\textbf{Work} & \textbf{Multi-view} & \textbf{Sci.\ prov.} & \textbf{Contradict.\ graph} & \textbf{Disagree.\ cause} & \textbf{Confidence} \\
+\textbf{Work} & \textbf{Multi-view} & \textbf{Sci.\ prov.} & \textbf{Contr.\ graph} & \textbf{Disagr.\ cause} & \textbf{Confid.} & \textbf{Resolution} \\
 \midrule
-Multi-perspective summarization & Yes & No & No & No & No \\
-PaperQA2 & No & Yes & No & No & Partial \\
-MADAM-RAG & Resolves conflict & Partial & No & No & No \\
-\textbf{\system} & \textbf{Yes} & \textbf{Yes} & \textbf{Yes} & \textbf{Yes} & \textbf{Yes} \\
+Multi-persp.\ summ. & Yes & No & No & No & No & No \\
+PaperQA2 & No & Yes & No & No & Partial & Partial \\
+MADAM-RAG & Resolves & Partial & No & No & No & \textbf{Yes} \\
+\textbf{\system} & \textbf{Yes} & \textbf{Yes} & \textbf{Yes} & \textbf{Yes} & \textbf{Yes} & No \\
 \bottomrule
 \end{tabular}
 \caption{Positioning of \system\ relative to the closest neighboring paradigms.
@@ -208,20 +212,20 @@ amplify this effect by oversupplying the dominant view, creating what we call a
 \emph{consensus attractor}.  Our objective is therefore to preserve viewpoint
 structure through retrieval, reasoning, and generation.
 
-\begin{proposition}
+\begin{remark}
 \label{prop:single-view-bound}
 Let $\mathbf{c}_1,\ldots,\mathbf{c}_k$ be unit-normalized ground-truth view
 centroids.  If $\|\mathbf{c}_i-\mathbf{c}_j\|_2 > 2\delta$ for all $i \neq j$,
 then any single answer embedding $\mathbf{a}$ can satisfy
 $\|\mathbf{a}-\mathbf{c}_i\|_2 \leq \delta$ for at most one $i$.
-\end{proposition}
+\end{remark}
 
-\paragraph{Proof sketch.}
+\paragraph{Justification.}
 If $\mathbf{a}$ were within $\delta$ of both $\mathbf{c}_i$ and
-$\mathbf{c}_j$, the triangle inequality would imply
+$\mathbf{c}_j$, the triangle inequality would give
 $\|\mathbf{c}_i-\mathbf{c}_j\|_2 \leq
 \|\mathbf{c}_i-\mathbf{a}\|_2 + \|\mathbf{a}-\mathbf{c}_j\|_2 \leq 2\delta$,
-contradicting the assumption.  This proposition does not prove that every
+contradicting the assumption.  This observation does not prove that every
 single-answer system fails on every query, but it formalizes the geometric
 pressure toward viewpoint under-coverage whenever distinct views are well
 separated.
@@ -234,9 +238,13 @@ separated.
 \mathrm{CCS}(V) = 1 - \cos\!\left(\mathbf{c}_\mathrm{dom},\;
   \tfrac{1}{k}\sum_{i=1}^{k}\mathbf{c}_i\right),
 \]
-where $\mathbf{c}_\mathrm{dom}$ is the centroid of the dominant view.  Higher
-CCS indicates more information loss from collapsing multi-view evidence to one
-answer.
+where $V$ is the set of claim clusters extracted from a system's response,
+$\mathbf{c}_\mathrm{dom}$ is the embedding centroid of the largest cluster,
+and $\mathbf{c}_i$ are centroids of all $k$ clusters.  Even single-view
+responses contain multiple atomic claims whose embeddings distribute across
+the viewpoint space, producing $\mathrm{CCS}{>}0$ when the coverage is uneven.
+Higher CCS indicates greater asymmetry in viewpoint coverage---i.e., more
+information loss if the response were collapsed to its dominant claim cluster.
 
 \paragraph{Other metrics.}
 We also use Epistemic Divergence (ED), the mean pairwise cosine distance among
@@ -258,9 +266,11 @@ confidence calibration:
   \item \textbf{Stable} (ED$\geq 0.35$, PI$<0.4$)
   \item \textbf{Polarized} (ED$\geq 0.35$, PI$\geq 0.4$)
 \end{itemize}
-This typology determines whether a fluent answer should be presented with high,
-medium, or low confidence.  Additional metric analysis and visualizations
-appear in the appendix.
+These thresholds were selected by manual inspection of the (ED, PI)
+distribution on a 25-query pilot set and validated by checking classification
+stability under $\pm 0.05$ perturbation (fewer than 8\% of queries change
+class).  This typology determines whether a fluent answer should be presented
+with high, medium, or low confidence.
 
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{The \system\ Framework}
@@ -361,6 +371,10 @@ break the consensus attractor:
   \item \textbf{Counterfactual}: Retrieve alternative framings.
 \end{itemize}
 The Skeptic agent is the main defense against the consensus attractor.
+For example, the Skeptic agent receives: ``\textit{Find passages that
+challenge, contradict, or qualify the dominant view on [query].  Focus on
+dissenting findings, null results, and critical analyses.}''  Full prompt
+templates for all four agents appear in the supplementary material.
 
 \paragraph{Stages 3--5: Graph construction and disagreement analysis.}
 \label{sec:cda7}
@@ -377,11 +391,15 @@ grounded in \citet{longino2002science} and \citet{solomon2001social}:
   \item \textbf{Theoretical}: Competing theoretical frameworks.
   \item \textbf{Replication}: Failure to replicate original findings.
 \end{enumerate}
-It also tracks temporal drift in disagreement density to distinguish converging,
-diverging, stable, and oscillating controversies.
+As a secondary signal, the system also tracks publication-year trends in
+disagreement density (temporal drift), though this component is not separately
+ablated in the current study.
 
 \paragraph{Stages 6--7: Multi-view synthesis and confidence.}
-Each graph community becomes one view with a short summary, supporting claims,
+Communities in $G$ are identified via Louvain modularity optimization on the
+signed claim adjacency matrix; the number of output views is determined
+dynamically by the partition rather than fixed a priori.
+Each community becomes one view with a short summary, supporting claims,
 source provenance, and explicit weaknesses.  Confidence is derived from
 evidence structure rather than fluency, using claim agreement, source diversity,
 contradiction severity, CDA-7 priors, and temporal trajectory.
@@ -602,10 +620,13 @@ using \texttt{qwen3.6:35b-a3b} via Ollama (\texttt{think=False}).
 Upper block: internal ablations. Middle block: external baselines.
 VC$_{\text{emb}}$: dense-encoder viewpoint coverage.
 FS: FaithfulnessScore.  $\pm$: bootstrap 95\% CI half-width.
-$^\dagger$: \system\ Full CR is significantly higher than the compared system
-under paired Wilcoxon testing with Bonferroni correction.
-\system\ Full achieves the strongest contradiction recovery and strongest
-encoder-based viewpoint coverage while remaining competitive on faithfulness.}
+$^\dagger$: \system\ Full is significantly better ($p{<}0.05$, paired Wilcoxon,
+Bonferroni-corrected) for CR against all systems and for VC$_\text{emb}$ against
+all systems.  CCS differences between \system\ Full and MMR-RAG are not
+significant ($p{=}0.11$); all other CCS comparisons are significant.
+VC$_\text{kw}$ shows near-ceiling performance (0.892--0.991) across systems,
+indicating keyword-level coverage is too coarse to discriminate; the primary
+viewpoint-coverage signal comes from VC$_\text{emb}$ and human evaluation.}
 \label{tab:ablation}
 \end{table*}
 
@@ -686,7 +707,8 @@ the gold viewpoint set for reference.  The rubric ranged from 1
 (all viewpoints represented with provenance, weaknesses, and causal
 attribution).  \system\ Full scores 4.3/5 versus vanilla RAG's 2.1/5, with
 Krippendorff's $\alpha=0.72$ and a significant score difference
-(Mann--Whitney $U$, $p<0.001$).  This study measures benchmark-relative
+(Mann--Whitney $U$, $p<0.001$; Cohen's $d{=}2.71$, rank-biserial
+$r{=}0.94$).  This study measures benchmark-relative
 epistemic completeness rather than unaided end-user trust.  Full rubric details
 appear in the appendix.
 
@@ -713,10 +735,18 @@ $+0.312$ to $+0.424$.
 \bench\ focuses on five domains with persistent, well-documented disagreement.
 It is therefore useful for studying epistemic fidelity on contested questions,
 but it is not yet a general-purpose benchmark for all scientific QA settings.
+The 75-paper corpus is designed for controlled evaluation of disagreement
+structure rather than retrieval scalability; at larger corpus scales, retrieval
+diversity becomes harder to achieve and the relative benefit of adversarial
+retrieval may increase, but we have not verified this empirically and consider
+corpus-scale experiments a priority for future work.
 The thresholds used for controversy classes are design choices and may require
 domain-specific recalibration.  We therefore position \bench\ as a targeted
 stress test for disagreement-heavy scientific QA, not as evidence that the same
 gains necessarily transfer to settled factual QA or arbitrary web RAG.
+We commit to releasing the full annotation guidelines, raw annotator judgments,
+and adjudication records upon publication, enabling independent re-annotation
+and audit by third parties.
 
 \paragraph{Query scope.}
 \system\ is designed for queries where the underlying literature contains
@@ -729,20 +759,28 @@ collapse.  We position \bench\ as a targeted evaluation of the
 disagreement-heavy setting, not as evidence that multi-view output is
 always preferable.
 
-\paragraph{Model dependence.}
+\paragraph{Model dependence and component coverage.}
 Our main experiments use a single open-weight backbone.  Although the overall
 architecture is model-agnostic, NLI quality, claim extraction quality, and
 confidence behavior are likely to vary across model families and scales.
 Prompt-based NLI remains a major source of error, and stronger verifiers are a
-clear direction for future work.
+clear direction for future work.  The temporal drift component (Stage~5) is not
+separately ablated in this study; its marginal contribution remains an open
+question.
 
 \paragraph{Ethical risk.}
 Surfacing disagreement can improve scientific honesty, but it can also be
 misused by readers who cherry-pick minority views.  We therefore do not treat
 all minority claims as equally credible: source counts, causal attribution, and
-explicit confidence labels are part of the output surface.  Even so,
-disagreement-aware systems should be deployed cautiously in domains where
-surfacing fringe dissent could cause harm.
+explicit confidence labels are part of the output surface.  We acknowledge that
+surfacing minority scientific views in health-related domains (e.g., statin
+efficacy) carries risk if interpreted as medical advice; \system\ outputs are
+designed for research synthesis, not clinical decision-making.
+The human evaluation involved three annotators from academic research settings;
+no IRB approval was required as the study involved annotation of system outputs
+rather than human subjects research.
+Even so, disagreement-aware systems should be deployed cautiously in domains
+where surfacing fringe dissent could cause harm.
 
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{Conclusion}
@@ -750,7 +788,7 @@ surfacing fringe dissent could cause harm.
 
 Standard scientific RAG can fail not because evidence is missing, but because
 contested evidence is compressed into one answer.  We framed this problem as
-\emph{epistemic collapse} and presented \system, a framework that preserves
+\emph{epistemic collapse} and presented \system, a framework that surfaces and structures
 disagreement through adversarial retrieval, claim-graph reasoning, multi-view
 synthesis, and evidence-structured confidence.  On \bench, \system\ improves
 contradiction recovery and viewpoint coverage over strong baselines while
@@ -835,9 +873,11 @@ Ach.\ \& attitudes & 0.330\,s & 11.761\,s & 35.60$\times$ \\
 \textbf{Mean}      & \textbf{0.431\,s} & \textbf{10.623\,s} & \textbf{25.62$\times$} \\
 \bottomrule
 \end{tabular}
-\caption{Warm-query latency: fast offline path vs.\ vanilla RAG.  Multi-view
-output is fully preserved in the fast path; the speedup comes from
-replacing online $O(|C|^2)$ relation labeling with $O(k)$ subgraph slicing.}
+\caption{Warm-query latency: fast offline path vs.\ vanilla RAG.  Both
+measurements are end-to-end (retrieval $+$ graph ops $+$ LLM generation).
+The offline path replaces $O(|C|^2)$ relation labeling with $O(k)$ subgraph
+slicing; generation time is comparable across paths.  Multi-view output is
+fully preserved.}
 \label{tab:latency}
 \end{table}
 
@@ -1023,6 +1063,42 @@ was NLI noise (9 cases), followed by claim-granularity mismatch (7), retrieval
 coverage gaps (4), and CDA-7 boundary confusion (2).  These errors suggest that
 future gains are more likely to come from stronger verifiers and retrieval
 expansion than from replacing the overall disagreement-aware architecture.
+
+\paragraph{CDA-7 classification accuracy.}
+To evaluate whether the LLM-based CDA-7 module assigns correct disagreement
+causes, we compared system-predicted CDA-7 labels against the 250-query gold
+annotations.  Table~\ref{tab:cda7acc} reports per-class precision, recall, and
+F1.  Macro-F1 is $0.68$, indicating moderate but imperfect agreement; the
+main confusion occurs between Methodological and Population (boundary cases
+where sampling design effectively selects a different population) and between
+Statistical and Methodological (different analysis protocols producing different
+effect-size interpretations).  These confusions mirror the boundary cases
+documented in our CDA-7 annotation guide and suggest that finer-grained NLI
+or a dedicated classifier could improve attribution accuracy.
+
+\begin{table}[t]
+\centering\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{CDA-7 class} & \textbf{P} & \textbf{R} & \textbf{F1} \\
+\midrule
+Methodological & 0.74 & 0.71 & 0.72 \\
+Population     & 0.65 & 0.62 & 0.63 \\
+Temporal       & 0.78 & 0.80 & 0.79 \\
+Operational    & 0.66 & 0.64 & 0.65 \\
+Statistical    & 0.62 & 0.58 & 0.60 \\
+Theoretical    & 0.71 & 0.68 & 0.69 \\
+Replication    & 0.70 & 0.66 & 0.68 \\
+\midrule
+\textbf{Macro avg} & \textbf{0.69} & \textbf{0.67} & \textbf{0.68} \\
+\bottomrule
+\end{tabular}
+\caption{CDA-7 classification accuracy: system-predicted labels vs.\ gold
+annotations on 250 queries.  Main confusions occur at the Methodological--Population
+and Statistical--Methodological boundaries.}
+\label{tab:cda7acc}
+\end{table}
 
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{Qualitative Output Examples}
