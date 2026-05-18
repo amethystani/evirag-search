@@ -162,7 +162,7 @@ accounts of how scientific disagreements are actually sustained
 \setlength{\tabcolsep}{5pt}
 \begin{tabular}{@{}lccccc@{}}
 \toprule
-\textbf{Work} & \textbf{Multi-view} & \textbf{Scientific prov.} & \textbf{Contradiction graph} & \textbf{Disagreement cause} & \textbf{Confidence} \\
+\textbf{Work} & \textbf{Multi-view} & \textbf{Sci.\ prov.} & \textbf{Contradict.\ graph} & \textbf{Disagree.\ cause} & \textbf{Confidence} \\
 \midrule
 Multi-perspective summarization & Yes & No & No & No & No \\
 PaperQA2 & No & Yes & No & No & Partial \\
@@ -273,6 +273,7 @@ pipeline.
 
 \begin{figure*}[t]
 \centering
+\scalebox{0.93}{%
 \begin{tikzpicture}[
   box/.style={rectangle, draw=black!70, fill=white, text width=1.75cm,
     align=center, font=\footnotesize, minimum height=0.70cm, rounded corners=2pt},
@@ -334,7 +335,7 @@ pipeline.
 \node[stlabel] at (10.0,-1.35) {Stages~4--5};
 \node[stlabel] at (12.4,-0.85) {Stage~6};
 \node[stlabel] at (14.8,-0.85) {Stage~7};
-\end{tikzpicture}
+\end{tikzpicture}}%
 \caption{\system\ seven-stage pipeline.  Stage~2 (dashed box) deploys four
 agents with orthogonal epistemic objectives to escape the consensus attractor
 (\S\ref{sec:formalization}): the \textbf{Skeptic} agent is the only agent
@@ -610,16 +611,17 @@ encoder-based viewpoint coverage while remaining competitive on faithfulness.}
 
 \begin{table}[t]
 \centering\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{@{}lccp{3.7cm}@{}}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lccl@{}}
 \toprule
 \textbf{Removed} & $\Delta$CR & $\Delta$VC$_\text{emb}$ & \textbf{Primary damage} \\
 \midrule
-Retrieval ensemble & $-0.162$ & $-0.409$ & Lower minority-view recall \\
-Claim graph & $-0.138$ & $-0.335$ & Weaker contradiction structure \\
+Retrieval ensemble & $-0.162$ & $-0.409$ & Less minority-view recall \\
+Claim graph & $-0.138$ & $-0.335$ & Weaker contradiction struct. \\
 Multi-view output & $-0.314$ & $-0.558$ & Viewpoint collapse returns \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \caption{Ablation deltas relative to \system\ Full.  The largest degradation
 comes from collapsing the final response back to one answer, showing that
 structured synthesis is as important as diverse retrieval.}
