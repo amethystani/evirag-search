@@ -80,9 +80,9 @@ evirag-search/                     ← root
 │
 ├── README.md                      ← this file
 ├── requirements.txt               ← Python dependencies
-├── config.py                      ← centralized configuration (models, paths, prompts)
 │
-├── Core pipeline
+├── core/                          ← pipeline modules
+│   ├── config.py                  ← centralized configuration (models, paths, prompts)
 │   ├── epistemic_engine.py        ← intent analysis, claim extraction, NLI
 │   ├── multi_agent.py             ← four-agent adversarial retrieval
 │   ├── claim_graph.py             ← disagreement graph construction
@@ -93,27 +93,38 @@ evirag-search/                     ← root
 │   ├── data_layer.py              ← PDF processing, chunking, FAISS indexing
 │   ├── vlm_module.py              ← CLIP visual-text alignment
 │   ├── groq_client.py             ← Groq API client (cloud backend)
-│   └── ollama_cloud_client.py     ← Ollama cloud client
+│   ├── ollama_cloud_client.py     ← Ollama cloud client
+│   └── evirag_system.py           ← high-level system wrapper
 │
-├── Entry points
+├── api/                           ← entry points
 │   ├── run.py                     ← command-line query runner
 │   ├── fastapi_service.py         ← REST API service
 │   ├── streamlit_app.py           ← Streamlit UI
-│   ├── serve_frontend.py          ← serves the React frontend locally
-│   └── evirag_system.py           ← high-level system wrapper
+│   └── serve_frontend.py          ← serves the React frontend locally
 │
-├── Evaluation
+├── evaluation/                    ← metrics and evaluation scripts
 │   ├── evaluation_framework.py    ← CR, VC_emb, VC_kw, CCS, CCE, FS metrics
 │   ├── evirag_eval_qwen32b.py     ← evaluation script (Qwen3.6-35B backbone)
-│   ├── benchmark_fast_graph.py    ← fast offline graph benchmarking
+│   ├── evirag_eval_results.json   ← cached evaluation results
 │   └── autoresearch_eval.py       ← automated research evaluation
 │
-├── Utility scripts
+├── scripts/                       ← utility and pipeline scripts
 │   ├── quick_run.py               ← quick sanity-check query
 │   ├── quickstart.py              ← guided first-run setup
 │   ├── mode_comparison.py         ← compare vanilla RAG vs EVIRAG output
-│   ├── run_full_pipeline_fixed.py ← end-to-end pipeline runner
-│   └── rebuild_visual_cache.py    ← rebuild CLIP figure cache
+│   ├── rebuild_visual_cache.py    ← rebuild CLIP figure cache
+│   ├── benchmark_fast_graph.py    ← fast offline graph benchmarking
+│   ├── run_full_pipeline_fixed.py ← end-to-end pipeline runner (peS2o corpus)
+│   └── evirag_quicktest.py        ← NLI sanity check before a full run
+│
+├── experiments/                   ← long-running research experiments
+│   ├── evirag_12h_experiment.py   ← 12-hour ablation run
+│   └── evirag_48h_experiment.py   ← 48-hour full benchmark run
+│
+├── tests/                         ← test suite
+│   ├── conftest.py                ← pytest path setup
+│   ├── smoke_test.py              ← quick end-to-end sanity check
+│   └── ...                        ← per-module test files
 │
 ├── corpus/                        ← place scientific PDFs here (sample papers included)
 ├── data/                          ← auto-generated (embeddings, vector store, cache)
@@ -137,12 +148,10 @@ evirag-search/                     ← root
 │   ├── fast_pipeline.py
 │   └── pipeline/                  ← data pipeline scripts
 │
-├── paper/latex/                   ← LaTeX source for the research paper
-│   ├── acl_latex.tex
-│   ├── custom.bib
-│   └── acl_latex.pdf
-│
-└── tests/                         ← test scripts
+└── paper/latex/                   ← LaTeX source for the research paper
+    ├── acl_latex.tex
+    ├── custom.bib
+    └── acl_latex.pdf
 ```
 
 ---
@@ -197,13 +206,13 @@ GROQ_API_KEY=your_key_here
 ### Command-line
 
 ```bash
-python run.py "Does homework improve academic achievement?"
+python api/run.py "Does homework improve academic achievement?"
 ```
 
 ### Streamlit UI
 
 ```bash
-streamlit run streamlit_app.py
+streamlit run api/streamlit_app.py
 ```
 
 Open [http://localhost:8501](http://localhost:8501), click **Initialize System**, then enter a query.
@@ -211,7 +220,7 @@ Open [http://localhost:8501](http://localhost:8501), click **Initialize System**
 ### REST API
 
 ```bash
-uvicorn fastapi_service:app --reload
+uvicorn api.fastapi_service:app --reload
 # POST http://localhost:8000/query
 # {"query": "Do statins prevent cardiovascular events?", "mode": "evirag"}
 ```
@@ -219,6 +228,7 @@ uvicorn fastapi_service:app --reload
 ### Python API
 
 ```python
+import sys; sys.path.insert(0, "core")
 from evirag_system import EVIRAGSystem, EVIRAGConfig
 
 config = EVIRAGConfig(mode="evirag")
@@ -240,7 +250,7 @@ for view in result["answer"]["views"]:
 EVIRAG-Bench contains 250 queries across five contested scientific domains. A 25-query sample is included in `benchmark/queries/sample_queries.json`.
 
 ```bash
-python evaluation_framework.py \
+python evaluation/evaluation_framework.py \
   --predictions your_output.json \
   --ground_truth benchmark/queries/sample_queries.json
 ```
@@ -295,10 +305,10 @@ The claim graph can be precomputed offline over the full corpus (one-time cost).
 
 ```bash
 # Precompute graph (run once)
-python benchmark_fast_graph.py --precompute
+python scripts/benchmark_fast_graph.py --precompute
 
 # Query using cached graph (fast path)
-python run.py "Does saturated fat increase cardiovascular risk?" --fast
+python api/run.py "Does saturated fat increase cardiovascular risk?" --fast
 ```
 
 Benchmark result: **0.43 s** warm-query latency vs **10.62 s** for vanilla RAG (25.6× speedup).

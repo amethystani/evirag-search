@@ -3,9 +3,12 @@ EVIRAG FastAPI Service
 Backend API for the frontend and external integrations.
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
+
 from contextlib import asynccontextmanager
 from collections import Counter, defaultdict
-from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
 
 import asyncio

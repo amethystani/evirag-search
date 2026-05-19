@@ -13,6 +13,11 @@ from config import (
     get_model_config, get_prompt, INTENT_DIMENSIONS,
     SLM_MODELS, LLM_MODELS
 )
+from ollama_cloud_client import OllamaCloudClient
+
+
+
+
 
 
 @dataclass
@@ -69,96 +74,18 @@ class ClaimRelationship:
         return asdict(self)
 
 
-class OllamaClient:
-    """Client for Ollama API — tuned for qwen3:0.6b (thinking model)."""
+class OllamaClient(OllamaCloudClient):
+    """
+    Legacy shim — all calls are transparently forwarded to OllamaCloudClient
+    (ollama.com cloud API with gpt-oss:120b).
 
-    # qwen3:0.6b always generates ~150 thinking tokens before the response.
-    # num_predict must exceed that or the response field is empty.
-    THINKING_TOKEN_OVERHEAD = 200
+    This class exists only for backward-compatibility. New code should use
+    OllamaCloudClient or get_cloud_client() directly.
+    """
 
-    def __init__(self, endpoint: str = "http://localhost:11434"):
-        self.endpoint = endpoint
-
-    def generate(
-        self,
-        model: str,
-        prompt: str,
-        temperature: float = 0.7,
-        max_tokens: int = 512,
-        system: Optional[str] = None,
-    ) -> str:
-        """Generate text using Ollama.
-
-        For qwen3 thinking models, num_predict is automatically bumped by
-        THINKING_TOKEN_OVERHEAD so the response field is never empty.
-        The `thinking` field (chain-of-thought) is discarded — only the
-        final `response` is returned.
-        """
-        url = f"{self.endpoint}/api/generate"
-
-        # Guarantee we clear the thinking budget
-        effective_tokens = max_tokens + self.THINKING_TOKEN_OVERHEAD
-
-        payload = {
-            "model": model,
-            "prompt": prompt,
-            "temperature": temperature,
-            "stream": False,
-            "options": {
-                "num_predict": effective_tokens,
-                "num_ctx": 2048,   # keep context small for 0.6B
-            },
-        }
-
-        if system:
-            payload["system"] = system
-
-        try:
-            response = requests.post(url, json=payload, timeout=180)
-            response.raise_for_status()
-            result = response.json()
-            text = result.get("response", "").strip()
-            # Strip any residual <think>...</think> tags some models emit
-            import re as _re
-            text = _re.sub(r"<think>.*?</think>", "", text, flags=_re.DOTALL).strip()
-            return text
-        except Exception as e:
-            print(f"Ollama error ({model}): {e}")
-            return ""
-    
-    def extract_json(self, text: str) -> Optional[Any]:
-        """Extract JSON (object or array) from model response."""
-        import re
-
-        # 1. ```json ... ``` block — object or array
-        for pattern in [
-            r'```json\s*([\[{].*?[\]}])\s*```',
-            r'```\s*([\[{].*?[\]}])\s*```',
-        ]:
-            m = re.search(pattern, text, re.DOTALL)
-            if m:
-                try:
-                    return json.loads(m.group(1))
-                except Exception:
-                    pass
-
-        # 2. Bare JSON array [...]
-        m = re.search(r'(\[.*\])', text, re.DOTALL)
-        if m:
-            try:
-                return json.loads(m.group(1))
-            except Exception:
-                pass
-        
-        # Look for raw JSON object
-        json_match = re.search(r'\{.*\}', text, re.DOTALL)
-        if json_match:
-            try:
-                return json.loads(json_match.group(0))
-            except:
-                pass
-        
-        return None
+    def __init__(self, endpoint: str = "https://ollama.com"):
+        # Ignore the legacy endpoint arg; always use the cloud
+        super().__init__()
 
 
 class EpistemicIntentAnalyzer:
@@ -168,12 +95,12 @@ class EpistemicIntentAnalyzer:
         self.backend = backend
         self.model_config = get_model_config("intent_analyzer", "slm", backend)
         
-        # Auto-select client based on endpoint
+        # Select client: Groq cloud  → GroqClient, everything else → OllamaCloudClient
         if self.model_config and "groq.com" in self.model_config.endpoint:
             from groq_client import GroqClient
             self.client = GroqClient()
         else:
-            self.client = OllamaClient()
+            self.client = OllamaCloudClient()
     
     def analyze(self, query: str) -> EpistemicIntent:
         """Classify query along epistemic dimensions"""
@@ -220,13 +147,13 @@ class HypothesisGenerator:
         self.slm_config = get_model_config("hypothesis_generator", "slm", backend)
         self.llm_config = get_model_config("hypothesis_generator", "llm", backend)
         
-        # Auto-select client
+        # Select client: Groq cloud → GroqClient, everything else → OllamaCloudClient
         config_to_check = self.llm_config or self.slm_config
         if config_to_check and "groq.com" in config_to_check.endpoint:
             from groq_client import GroqClient
             self.client = GroqClient()
         else:
-            self.client = OllamaClient()
+            self.client = OllamaCloudClient()
     
     def generate(
         self, 
@@ -291,12 +218,12 @@ class ClaimExtractor:
         self.filter_config = get_model_config("claim_filter", "slm", backend)
         self.extractor_config = get_model_config("claim_extractor", "llm", backend)
         
-        # Auto-select client
+        # Select client: Groq cloud → GroqClient, everything else → OllamaCloudClient
         if self.extractor_config and "groq.com" in self.extractor_config.endpoint:
             from groq_client import GroqClient
             self.client = GroqClient()
         else:
-            self.client = OllamaClient()
+            self.client = OllamaCloudClient()
     
     def extract_from_chunk(self, chunk, chunk_id_counter: int = 0) -> List[AtomicClaim]:
         """Extract claims from a single chunk"""
@@ -463,12 +390,12 @@ class NLIReasoner:
         self.prefilter_config = get_model_config("nli_prefilter", "slm", backend)
         self.verifier_config = get_model_config("nli_verifier", "llm", backend)
         
-        # Auto-select client
+        # Select client: Groq cloud → GroqClient, everything else → OllamaCloudClient
         if self.verifier_config and "groq.com" in self.verifier_config.endpoint:
             from groq_client import GroqClient
             self.client = GroqClient()
         else:
-            self.client = OllamaClient()
+            self.client = OllamaCloudClient()
     
     def analyze_relationship(
         self,

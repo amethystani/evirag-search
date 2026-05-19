@@ -8,6 +8,13 @@ from pathlib import Path
 from typing import Dict, Any
 from dataclasses import dataclass
 
+# Load .env early so every os.getenv() below sees the values
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 # ============================================================================
 # PATHS
 # ============================================================================
@@ -37,97 +44,112 @@ class ModelConfig:
     endpoint: str = "http://localhost:11434"  # Ollama default
     temperature: float = 0.7
     max_tokens: int = 2048
-    
-# ─────────────────────────────────────────────────────────────────────────────
-# LOCAL MODEL: qwen3:0.6b
-# qwen3:0.6b is a thinking model — it generates ~150 reasoning tokens BEFORE
-# the actual response.  num_predict must be ≥ 400 or the response field is
-# empty.  The OllamaClient reads response (not thinking), so all prompts work
-# correctly — just set max_tokens high enough to clear the thinking budget.
-# ─────────────────────────────────────────────────────────────────────────────
-_LOCAL_MODEL = "qwen3:0.6b"
 
-# Small Language Models (SLMs) — simpler classification tasks
+# ─────────────────────────────────────────────────────────────────────────────
+# CLOUD MODEL: Ollama Cloud — gpt-oss:120b
+# All inference now routes through ollama.com cloud API.
+# The model, host, and API key are read from environment / .env.
+# No local Ollama daemon is required.
+# ─────────────────────────────────────────────────────────────────────────────
+_OLLAMA_CLOUD_MODEL = os.getenv("OLLAMA_CLOUD_MODEL", "gpt-oss:120b")
+_OLLAMA_HOST        = os.getenv("OLLAMA_HOST",         "https://ollama.com")
+
+# Alias kept for backward-compat with any import that still references _LOCAL_MODEL
+_LOCAL_MODEL = _OLLAMA_CLOUD_MODEL
+
+# Small Language Models — routed through Ollama cloud (gpt-oss:120b)
 SLM_MODELS = {
     "intent_analyzer": ModelConfig(
-        name=_LOCAL_MODEL,
+        name=_OLLAMA_CLOUD_MODEL,
         type="slm",
+        endpoint=_OLLAMA_HOST,
         temperature=0.1,
-        max_tokens=400,   # 150 thinking + 250 answer
+        max_tokens=512,
     ),
     "claim_filter": ModelConfig(
-        name=_LOCAL_MODEL,
+        name=_OLLAMA_CLOUD_MODEL,
         type="slm",
+        endpoint=_OLLAMA_HOST,
         temperature=0.1,
-        max_tokens=500,
+        max_tokens=1024,
     ),
     "nli_prefilter": ModelConfig(
-        name=_LOCAL_MODEL,
+        name=_OLLAMA_CLOUD_MODEL,
         type="slm",
+        endpoint=_OLLAMA_HOST,
         temperature=0.1,
-        max_tokens=400,
+        max_tokens=512,
     ),
     "synthesizer": ModelConfig(
-        name=_LOCAL_MODEL,
+        name=_OLLAMA_CLOUD_MODEL,
         type="slm",
+        endpoint=_OLLAMA_HOST,
         temperature=0.3,
-        max_tokens=600,
+        max_tokens=1024,
     ),
 }
 
-# Large Language Models (LLMs) — same model, more generous token budget
+# Large Language Models — routed through Ollama cloud (gpt-oss:120b)
 LLM_MODELS = {
     "hypothesis_generator": ModelConfig(
-        name=_LOCAL_MODEL,
+        name=_OLLAMA_CLOUD_MODEL,
         type="llm",
+        endpoint=_OLLAMA_HOST,
         temperature=0.2,
-        max_tokens=600,
+        max_tokens=1024,
     ),
     "claim_extractor": ModelConfig(
-        name=_LOCAL_MODEL,
+        name=_OLLAMA_CLOUD_MODEL,
         type="llm",
+        endpoint=_OLLAMA_HOST,
         temperature=0.1,
-        max_tokens=500,
+        max_tokens=1024,
     ),
     "nli_verifier": ModelConfig(
-        name=_LOCAL_MODEL,
+        name=_OLLAMA_CLOUD_MODEL,
         type="llm",
+        endpoint=_OLLAMA_HOST,
         temperature=0.1,
-        max_tokens=400,
+        max_tokens=512,
     ),
     "synthesizer_escalation": ModelConfig(
-        name=_LOCAL_MODEL,
+        name=_OLLAMA_CLOUD_MODEL,
         type="llm",
+        endpoint=_OLLAMA_HOST,
         temperature=0.3,
-        max_tokens=700,
+        max_tokens=2048,
     ),
 }
 
-# Agent Models — all unified on the single available 0.6B model
+# Agent Models — all running on Ollama cloud gpt-oss:120b
 AGENT_MODELS = {
     "precision": ModelConfig(
-        name=_LOCAL_MODEL,
+        name=_OLLAMA_CLOUD_MODEL,
         type="llm",
+        endpoint=_OLLAMA_HOST,
         temperature=0.1,
-        max_tokens=500,
+        max_tokens=1024,
     ),
     "recall": ModelConfig(
-        name=_LOCAL_MODEL,
+        name=_OLLAMA_CLOUD_MODEL,
         type="llm",
+        endpoint=_OLLAMA_HOST,
         temperature=0.3,
-        max_tokens=500,
+        max_tokens=1024,
     ),
     "skeptic": ModelConfig(
-        name=_LOCAL_MODEL,
+        name=_OLLAMA_CLOUD_MODEL,
         type="llm",
+        endpoint=_OLLAMA_HOST,
         temperature=0.2,
-        max_tokens=500,
+        max_tokens=1024,
     ),
     "counterfactual": ModelConfig(
-        name=_LOCAL_MODEL,
+        name=_OLLAMA_CLOUD_MODEL,
         type="llm",
+        endpoint=_OLLAMA_HOST,
         temperature=0.3,
-        max_tokens=500,
+        max_tokens=1024,
     ),
 }
 
@@ -185,7 +207,7 @@ INTENT_DIMENSIONS = {
 # ============================================================================
 
 AGENT_CONFIG = {
-    # retrieval_k kept low — each chunk becomes a prompt to qwen3:0.6b
+    # retrieval_k — tuned for cloud model (higher budgets now affordable)
     "precision": {
         "retrieval_k": 3,
         "confidence_threshold": 0.8,
@@ -443,9 +465,9 @@ PROMPTS = {
 Query: {query}
 
 Provide classifications for:
-1. Factual vs Disputed: Is this a settled fact or an area of active disagreement?
+1. Factual vs Disputed: Is this a settled fact or an area of active scientific disagreement? (Ignore non-scientific conspiracy theories; e.g. the shape of the earth is 'factual').
 2. Empirical vs Theoretical: Does this require experimental evidence or theoretical reasoning?
-3. Expected Disagreement Level: How much disagreement do you expect in the literature?
+3. Expected Disagreement Level: How much scientific disagreement do you expect in the academic literature?
 
 Respond in JSON format:
 {{

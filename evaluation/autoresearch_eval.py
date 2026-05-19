@@ -21,6 +21,8 @@ Modifying the evaluator invalidates all experiment comparisons.
 
 import json
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
 from typing import List, Tuple
 
 from evaluation_framework import (

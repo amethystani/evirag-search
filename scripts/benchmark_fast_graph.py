@@ -3,8 +3,9 @@
 Rebuild and benchmark the EVIRAG fast claim-graph path.
 """
 
-import argparse
-import time
+import sys, argparse, time
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
 
 from config import CLAIM_GRAPH_CONFIG
 from evirag_system import EVIRAGConfig, EVIRAGSystem

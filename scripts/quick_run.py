@@ -1,5 +1,7 @@
 """Quick monitored pipeline run — 2 agents, no visual grounding."""
 import sys, time
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
 
 print("Initializing...")
 from evirag_system import EVIRAGSystem, EVIRAGConfig

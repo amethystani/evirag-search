@@ -1,5 +1,5 @@
 import os, sys
-os.chdir(os.path.join(os.path.dirname(__file__), "evirag"))
+os.chdir(os.path.join(os.path.dirname(__file__), "..", "evirag"))
 port = int(os.environ.get("PORT", 3000))
 import http.server, socketserver
 handler = http.server.SimpleHTTPRequestHandler

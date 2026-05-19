@@ -3,7 +3,9 @@
 Compare EVIRAG fast mode against the full pipeline on a fixed query set.
 """
 
-import time
+import sys, time
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
 from typing import Any, Dict, List, Optional
 
 from evirag_system import EVIRAGConfig, EVIRAGSystem

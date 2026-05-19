@@ -13,7 +13,7 @@ import requests
 import pandas as pd
 import streamlit as st
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
 
 # ---------------------------------------------------------------------------
 # Page config

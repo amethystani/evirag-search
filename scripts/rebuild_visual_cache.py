@@ -2,6 +2,9 @@
 """
 Quick test to rebuild visual cache with progress output
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
 from vlm_module import VisualEvidenceProcessor
 from data_layer import DataManager
 import numpy as np

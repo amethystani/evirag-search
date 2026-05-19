@@ -9,6 +9,10 @@ EVIRAG FULL DATASET PIPELINE — All 8M papers from peS2o v3
 - No torch.compile (crashes on this system's triton)
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
+
 import io, os, json, time, warnings, random, gc, shutil
 warnings.filterwarnings("ignore")
 
