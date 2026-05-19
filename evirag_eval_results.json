@@ -1,0 +1,2038 @@
+{
+  "metadata": {
+    "model": "qwen3.6:35b-a3b",
+    "run_date": "2026-05-15T09:09:56.069603",
+    "total_time_hours": 1.38,
+    "n_domains": 3,
+    "n_queries": 30,
+    "n_systems": 5
+  },
+  "statistics": {
+    "per_system_stats": {
+      "SYS1_Vanilla": {
+        "vc_kw": {
+          "mean": 0.989,
+          "ci_lo": 0.967,
+          "ci_hi": 1.0,
+          "n": 30
+        },
+        "vc_emb": {
+          "mean": 0.011,
+          "ci_lo": 0.0,
+          "ci_hi": 0.033,
+          "n": 30
+        },
+        "cr": {
+          "mean": 0.583,
+          "ci_lo": 0.467,
+          "ci_hi": 0.7,
+          "n": 30
+        },
+        "ccs": {
+          "mean": 0.562,
+          "ci_lo": 0.52,
+          "ci_hi": 0.604,
+          "n": 30
+        },
+        "cce": {
+          "mean": 0.117,
+          "ci_lo": 0.083,
+          "ci_hi": 0.147,
+          "n": 30
+        }
+      },
+      "SYS2_SingleAgent": {
+        "vc_kw": {
+          "mean": 0.989,
+          "ci_lo": 0.967,
+          "ci_hi": 1.0,
+          "n": 30
+        },
+        "vc_emb": {
+          "mean": 0.011,
+          "ci_lo": 0.0,
+          "ci_hi": 0.033,
+          "n": 30
+        },
+        "cr": {
+          "mean": 0.583,
+          "ci_lo": 0.467,
+          "ci_hi": 0.7,
+          "n": 30
+        },
+        "ccs": {
+          "mean": 0.573,
+          "ci_lo": 0.526,
+          "ci_hi": 0.622,
+          "n": 30
+        },
+        "cce": {
+          "mean": 0.117,
+          "ci_lo": 0.087,
+          "ci_hi": 0.15,
+          "n": 30
+        }
+      },
+      "SYS3_NoGraph": {
+        "vc_kw": {
+          "mean": 1.0,
+          "ci_lo": 1.0,
+          "ci_hi": 1.0,
+          "n": 30
+        },
+        "vc_emb": {
+          "mean": 0.011,
+          "ci_lo": 0.0,
+          "ci_hi": 0.033,
+          "n": 30
+        },
+        "cr": {
+          "mean": 0.6,
+          "ci_lo": 0.483,
+          "ci_hi": 0.7,
+          "n": 30
+        },
+        "ccs": {
+          "mean": 0.568,
+          "ci_lo": 0.519,
+          "ci_hi": 0.618,
+          "n": 30
+        },
+        "cce": {
+          "mean": 0.133,
+          "ci_lo": 0.093,
+          "ci_hi": 0.173,
+          "n": 30
+        }
+      },
+      "SYS4_NoMultiView": {
+        "vc_kw": {
+          "mean": 0.878,
+          "ci_lo": 0.778,
+          "ci_hi": 0.956,
+          "n": 30
+        },
+        "vc_emb": {
+          "mean": 0.0,
+          "ci_lo": 0.0,
+          "ci_hi": 0.0,
+          "n": 30
+        },
+        "cr": {
+          "mean": 0.417,
+          "ci_lo": 0.283,
+          "ci_hi": 0.55,
+          "n": 30
+        },
+        "ccs": {
+          "mean": 0.606,
+          "ci_lo": 0.549,
+          "ci_hi": 0.663,
+          "n": 30
+        },
+        "cce": {
+          "mean": 0.11,
+          "ci_lo": 0.073,
+          "ci_hi": 0.147,
+          "n": 30
+        }
+      },
+      "SYS5_EVIRAG_Full": {
+        "vc_kw": {
+          "mean": 0.989,
+          "ci_lo": 0.967,
+          "ci_hi": 1.0,
+          "n": 30
+        },
+        "vc_emb": {
+          "mean": 0.0,
+          "ci_lo": 0.0,
+          "ci_hi": 0.0,
+          "n": 30
+        },
+        "cr": {
+          "mean": 0.75,
+          "ci_lo": 0.633,
+          "ci_hi": 0.85,
+          "n": 30
+        },
+        "ccs": {
+          "mean": 0.524,
+          "ci_lo": 0.472,
+          "ci_hi": 0.58,
+          "n": 30
+        },
+        "cce": {
+          "mean": 0.24,
+          "ci_lo": 0.19,
+          "ci_hi": 0.287,
+          "n": 30
+        }
+      }
+    },
+    "wilcoxon": {
+      "SYS1_Vanilla": {
+        "vc_kw": {
+          "z": -0.447,
+          "p": 0.6547,
+          "significant": false,
+          "alpha_bonferroni": 0.0125
+        },
+        "vc_emb": {
+          "z": -1.0,
+          "p": 0.3173,
+          "significant": false,
+          "alpha_bonferroni": 0.0125
+        },
+        "cr": {
+          "z": -2.691,
+          "p": 0.0071,
+          "significant": true,
+          "alpha_bonferroni": 0.0125
+        }
+      },
+      "SYS2_SingleAgent": {
+        "vc_kw": {
+          "z": 0.0,
+          "p": 1.0,
+          "significant": false,
+          "alpha_bonferroni": 0.0125
+        },
+        "vc_emb": {
+          "z": -1.0,
+          "p": 0.3173,
+          "significant": false,
+          "alpha_bonferroni": 0.0125
+        },
+        "cr": {
+          "z": -2.621,
+          "p": 0.0088,
+          "significant": true,
+          "alpha_bonferroni": 0.0125
+        }
+      },
+      "SYS3_NoGraph": {
+        "vc_kw": {
+          "z": -1.0,
+          "p": 0.3173,
+          "significant": false,
+          "alpha_bonferroni": 0.0125
+        },
+        "vc_emb": {
+          "z": -1.0,
+          "p": 0.3173,
+          "significant": false,
+          "alpha_bonferroni": 0.0125
+        },
+        "cr": {
+          "z": -2.756,
+          "p": 0.0058,
+          "significant": true,
+          "alpha_bonferroni": 0.0125
+        }
+      },
+      "SYS4_NoMultiView": {
+        "vc_kw": {
+          "z": -2.366,
+          "p": 0.018,
+          "significant": false,
+          "alpha_bonferroni": 0.0125
+        },
+        "vc_emb": {
+          "z": 0.0,
+          "p": 1.0,
+          "significant": false,
+          "alpha_bonferroni": 0.0125
+        },
+        "cr": {
+          "z": -3.516,
+          "p": 0.0004,
+          "significant": true,
+          "alpha_bonferroni": 0.0125
+        }
+      }
+    },
+    "per_domain": {
+      "homework": {
+        "SYS1_Vanilla": {
+          "vc_kw": {
+            "mean": 0.967
+          },
+          "vc_emb": {
+            "mean": 0.0
+          },
+          "cr": {
+            "mean": 0.5
+          },
+          "ccs": {
+            "mean": 0.565
+          },
+          "cce": {
+            "mean": 0.05
+          }
+        },
+        "SYS2_SingleAgent": {
+          "vc_kw": {
+            "mean": 0.967
+          },
+          "vc_emb": {
+            "mean": 0.0
+          },
+          "cr": {
+            "mean": 0.55
+          },
+          "ccs": {
+            "mean": 0.563
+          },
+          "cce": {
+            "mean": 0.05
+          }
+        },
+        "SYS3_NoGraph": {
+          "vc_kw": {
+            "mean": 1.0
+          },
+          "vc_emb": {
+            "mean": 0.0
+          },
+          "cr": {
+            "mean": 0.6
+          },
+          "ccs": {
+            "mean": 0.582
+          },
+          "cce": {
+            "mean": 0.06
+          }
+        },
+        "SYS4_NoMultiView": {
+          "vc_kw": {
+            "mean": 0.667
+          },
+          "vc_emb": {
+            "mean": 0.0
+          },
+          "cr": {
+            "mean": 0.3
+          },
+          "ccs": {
+            "mean": 0.619
+          },
+          "cce": {
+            "mean": 0.0
+          }
+        },
+        "SYS5_EVIRAG_Full": {
+          "vc_kw": {
+            "mean": 0.967
+          },
+          "vc_emb": {
+            "mean": 0.0
+          },
+          "cr": {
+            "mean": 0.6
+          },
+          "ccs": {
+            "mean": 0.557
+          },
+          "cce": {
+            "mean": 0.24
+          }
+        }
+      },
+      "statins": {
+        "SYS1_Vanilla": {
+          "vc_kw": {
+            "mean": 1.0
+          },
+          "vc_emb": {
+            "mean": 0.0
+          },
+          "cr": {
+            "mean": 0.55
+          },
+          "ccs": {
+            "mean": 0.537
+          },
+          "cce": {
+            "mean": 0.1
+          }
+        },
+        "SYS2_SingleAgent": {
+          "vc_kw": {
+            "mean": 1.0
+          },
+          "vc_emb": {
+            "mean": 0.0
+          },
+          "cr": {
+            "mean": 0.55
+          },
+          "ccs": {
+            "mean": 0.539
+          },
+          "cce": {
+            "mean": 0.1
+          }
+        },
+        "SYS3_NoGraph": {
+          "vc_kw": {
+            "mean": 1.0
+          },
+          "vc_emb": {
+            "mean": 0.033
+          },
+          "cr": {
+            "mean": 0.6
+          },
+          "ccs": {
+            "mean": 0.513
+          },
+          "cce": {
+            "mean": 0.12
+          }
+        },
+        "SYS4_NoMultiView": {
+          "vc_kw": {
+            "mean": 1.0
+          },
+          "vc_emb": {
+            "mean": 0.0
+          },
+          "cr": {
+            "mean": 0.45
+          },
+          "ccs": {
+            "mean": 0.54
+          },
+          "cce": {
+            "mean": 0.13
+          }
+        },
+        "SYS5_EVIRAG_Full": {
+          "vc_kw": {
+            "mean": 1.0
+          },
+          "vc_emb": {
+            "mean": 0.0
+          },
+          "cr": {
+            "mean": 0.75
+          },
+          "ccs": {
+            "mean": 0.432
+          },
+          "cce": {
+            "mean": 0.37
+          }
+        }
+      },
+      "minwage": {
+        "SYS1_Vanilla": {
+          "vc_kw": {
+            "mean": 1.0
+          },
+          "vc_emb": {
+            "mean": 0.033
+          },
+          "cr": {
+            "mean": 0.7
+          },
+          "ccs": {
+            "mean": 0.585
+          },
+          "cce": {
+            "mean": 0.2
+          }
+        },
+        "SYS2_SingleAgent": {
+          "vc_kw": {
+            "mean": 1.0
+          },
+          "vc_emb": {
+            "mean": 0.033
+          },
+          "cr": {
+            "mean": 0.65
+          },
+          "ccs": {
+            "mean": 0.617
+          },
+          "cce": {
+            "mean": 0.2
+          }
+        },
+        "SYS3_NoGraph": {
+          "vc_kw": {
+            "mean": 1.0
+          },
+          "vc_emb": {
+            "mean": 0.0
+          },
+          "cr": {
+            "mean": 0.6
+          },
+          "ccs": {
+            "mean": 0.608
+          },
+          "cce": {
+            "mean": 0.22
+          }
+        },
+        "SYS4_NoMultiView": {
+          "vc_kw": {
+            "mean": 0.967
+          },
+          "vc_emb": {
+            "mean": 0.0
+          },
+          "cr": {
+            "mean": 0.5
+          },
+          "ccs": {
+            "mean": 0.659
+          },
+          "cce": {
+            "mean": 0.2
+          }
+        },
+        "SYS5_EVIRAG_Full": {
+          "vc_kw": {
+            "mean": 1.0
+          },
+          "vc_emb": {
+            "mean": 0.0
+          },
+          "cr": {
+            "mean": 0.9
+          },
+          "ccs": {
+            "mean": 0.583
+          },
+          "cce": {
+            "mean": 0.11
+          }
+        }
+      }
+    }
+  },
+  "per_query_results": {
+    "homework": {
+      "q00": {
+        "query": "Does homework improve academic achievement?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.604,
+            "cce": 0.0,
+            "gen_time_s": 24.7,
+            "response_len": 2859
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.675,
+            "cce": 0.0,
+            "gen_time_s": 24.1,
+            "response_len": 2790
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.683,
+            "cce": 0.0,
+            "gen_time_s": 32.8,
+            "response_len": 4007
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 0.667,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.564,
+            "cce": 0.0,
+            "gen_time_s": 38.0,
+            "response_len": 1540
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.7,
+            "cce": 0.3,
+            "gen_time_s": 41.8,
+            "response_len": 4794
+          }
+        }
+      },
+      "q01": {
+        "query": "Does homework have differential effects across grade levels?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 0.667,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.557,
+            "cce": 0.2,
+            "gen_time_s": 24.6,
+            "response_len": 2917
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.634,
+            "cce": 0.2,
+            "gen_time_s": 24.2,
+            "response_len": 2908
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.564,
+            "cce": 0.0,
+            "gen_time_s": 31.8,
+            "response_len": 4017
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 0.667,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.486,
+            "cce": 0.0,
+            "gen_time_s": 35.3,
+            "response_len": 3485
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.351,
+            "cce": 0.3,
+            "gen_time_s": 48.7,
+            "response_len": 5866
+          }
+        }
+      },
+      "q02": {
+        "query": "What is the effect of homework on student mental health?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.531,
+            "cce": 0.0,
+            "gen_time_s": 24.4,
+            "response_len": 2815
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.483,
+            "cce": 0.3,
+            "gen_time_s": 23.7,
+            "response_len": 2985
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.525,
+            "cce": 0.3,
+            "gen_time_s": 32.5,
+            "response_len": 4026
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.607,
+            "cce": 0.0,
+            "gen_time_s": 36.7,
+            "response_len": 1352
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.496,
+            "cce": 0.3,
+            "gen_time_s": 35.8,
+            "response_len": 4546
+          }
+        }
+      },
+      "q03": {
+        "query": "Does parental involvement in homework improve learning outcomes?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.381,
+            "cce": 0.3,
+            "gen_time_s": 24.3,
+            "response_len": 2971
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.293,
+            "cce": 0.0,
+            "gen_time_s": 23.8,
+            "response_len": 3023
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.351,
+            "cce": 0.3,
+            "gen_time_s": 31.9,
+            "response_len": 3597
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.367,
+            "cce": 0.0,
+            "gen_time_s": 36.4,
+            "response_len": 1625
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.37,
+            "cce": 0.0,
+            "gen_time_s": 34.6,
+            "response_len": 4421
+          }
+        }
+      },
+      "q04": {
+        "query": "Does homework develop non-cognitive skills such as self-regulation?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.552,
+            "cce": 0.0,
+            "gen_time_s": 23.6,
+            "response_len": 2920
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.574,
+            "cce": 0.0,
+            "gen_time_s": 23.6,
+            "response_len": 2789
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.513,
+            "cce": 0.0,
+            "gen_time_s": 33.0,
+            "response_len": 4037
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.522,
+            "cce": 0.0,
+            "gen_time_s": 34.7,
+            "response_len": 1310
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.417,
+            "cce": 0.3,
+            "gen_time_s": 39.2,
+            "response_len": 4874
+          }
+        }
+      },
+      "q05": {
+        "query": "Does homework widen or narrow the socioeconomic achievement gap?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.604,
+            "cce": 0.0,
+            "gen_time_s": 25.0,
+            "response_len": 2950
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.502,
+            "cce": 0.0,
+            "gen_time_s": 25.0,
+            "response_len": 3017
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.535,
+            "cce": 0.0,
+            "gen_time_s": 31.9,
+            "response_len": 3964
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 0.333,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.859,
+            "cce": 0.0,
+            "gen_time_s": 35.2,
+            "response_len": 428
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.508,
+            "cce": 0.3,
+            "gen_time_s": 43.1,
+            "response_len": 5359
+          }
+        }
+      },
+      "q06": {
+        "query": "What is the optimal homework duration per grade level?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.407,
+            "cce": 0.0,
+            "gen_time_s": 24.7,
+            "response_len": 2506
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.488,
+            "cce": 0.0,
+            "gen_time_s": 23.9,
+            "response_len": 2589
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.623,
+            "cce": 0.0,
+            "gen_time_s": 32.5,
+            "response_len": 3885
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.408,
+            "cce": 0.0,
+            "gen_time_s": 35.2,
+            "response_len": 1268
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.418,
+            "cce": 0.3,
+            "gen_time_s": 44.8,
+            "response_len": 5308
+          }
+        }
+      },
+      "q07": {
+        "query": "Is the homework-achievement correlation causal or merely correlational?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.591,
+            "cce": 0.0,
+            "gen_time_s": 24.9,
+            "response_len": 2942
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.717,
+            "cce": 0.0,
+            "gen_time_s": 24.5,
+            "response_len": 2874
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.547,
+            "cce": 0.0,
+            "gen_time_s": 32.6,
+            "response_len": 3779
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 0.667,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.789,
+            "cce": 0.0,
+            "gen_time_s": 39.0,
+            "response_len": 1630
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.747,
+            "cce": 0.3,
+            "gen_time_s": 48.0,
+            "response_len": 5874
+          }
+        }
+      },
+      "q08": {
+        "query": "Do different homework types produce different learning outcomes?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.723,
+            "cce": 0.0,
+            "gen_time_s": 24.5,
+            "response_len": 2861
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.647,
+            "cce": 0.0,
+            "gen_time_s": 23.9,
+            "response_len": 2919
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.727,
+            "cce": 0.0,
+            "gen_time_s": 31.6,
+            "response_len": 3730
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 0.333,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.799,
+            "cce": 0.0,
+            "gen_time_s": 35.8,
+            "response_len": 1473
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.716,
+            "cce": 0.3,
+            "gen_time_s": 45.3,
+            "response_len": 5546
+          }
+        }
+      },
+      "q09": {
+        "query": "How have homework research findings changed over recent decades?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.697,
+            "cce": 0.0,
+            "gen_time_s": 24.2,
+            "response_len": 2751
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 0.667,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.619,
+            "cce": 0.0,
+            "gen_time_s": 24.5,
+            "response_len": 2827
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.755,
+            "cce": 0.0,
+            "gen_time_s": 32.5,
+            "response_len": 3716
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 0.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.793,
+            "cce": 0.0,
+            "gen_time_s": 34.8,
+            "response_len": 1272
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 0.667,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.848,
+            "cce": 0.0,
+            "gen_time_s": 38.8,
+            "response_len": 4598
+          }
+        }
+      }
+    },
+    "statins": {
+      "q00": {
+        "query": "Do statins prevent cardiovascular events in primary prevention?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.388,
+            "cce": 0.1,
+            "gen_time_s": 24.7,
+            "response_len": 2627
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.404,
+            "cce": 0.1,
+            "gen_time_s": 24.1,
+            "response_len": 2592
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.333,
+            "cr": 1.0,
+            "ccs": 0.352,
+            "cce": 0.1,
+            "gen_time_s": 32.8,
+            "response_len": 3436
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.361,
+            "cce": 0.1,
+            "gen_time_s": 37.1,
+            "response_len": 1493
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.254,
+            "cce": 0.4,
+            "gen_time_s": 39.5,
+            "response_len": 4850
+          }
+        }
+      },
+      "q01": {
+        "query": "Do statins increase the risk of type 2 diabetes?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.534,
+            "cce": 0.1,
+            "gen_time_s": 24.3,
+            "response_len": 2648
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.64,
+            "cce": 0.1,
+            "gen_time_s": 24.7,
+            "response_len": 2658
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.692,
+            "cce": 0.1,
+            "gen_time_s": 31.4,
+            "response_len": 3649
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.712,
+            "cce": 0.1,
+            "gen_time_s": 37.7,
+            "response_len": 1300
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.44,
+            "cce": 0.4,
+            "gen_time_s": 34.0,
+            "response_len": 4001
+          }
+        }
+      },
+      "q02": {
+        "query": "Do statins cause muscle damage and myopathy?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.656,
+            "cce": 0.1,
+            "gen_time_s": 23.7,
+            "response_len": 2572
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.775,
+            "cce": 0.1,
+            "gen_time_s": 25.1,
+            "response_len": 2486
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.675,
+            "cce": 0.1,
+            "gen_time_s": 33.0,
+            "response_len": 3777
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.687,
+            "cce": 0.1,
+            "gen_time_s": 36.0,
+            "response_len": 1593
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.646,
+            "cce": 0.4,
+            "gen_time_s": 37.4,
+            "response_len": 4260
+          }
+        }
+      },
+      "q03": {
+        "query": "Do statins affect cognitive function or dementia risk?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.685,
+            "cce": 0.1,
+            "gen_time_s": 24.2,
+            "response_len": 2921
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.595,
+            "cce": 0.1,
+            "gen_time_s": 24.8,
+            "response_len": 2889
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.499,
+            "cce": 0.3,
+            "gen_time_s": 32.6,
+            "response_len": 3851
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.454,
+            "cce": 0.4,
+            "gen_time_s": 34.2,
+            "response_len": 1566
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.434,
+            "cce": 0.4,
+            "gen_time_s": 35.9,
+            "response_len": 4348
+          }
+        }
+      },
+      "q04": {
+        "query": "Is statin therapy effective for women in primary prevention?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.47,
+            "cce": 0.1,
+            "gen_time_s": 25.0,
+            "response_len": 2665
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.567,
+            "cce": 0.1,
+            "gen_time_s": 24.3,
+            "response_len": 2581
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.693,
+            "cce": 0.1,
+            "gen_time_s": 31.0,
+            "response_len": 3593
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.732,
+            "cce": 0.1,
+            "gen_time_s": 33.1,
+            "response_len": 1265
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.55,
+            "cce": 0.4,
+            "gen_time_s": 42.3,
+            "response_len": 5094
+          }
+        }
+      },
+      "q05": {
+        "query": "Do statins have anti-inflammatory effects beyond cholesterol lowering?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.648,
+            "cce": 0.1,
+            "gen_time_s": 24.7,
+            "response_len": 2674
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.533,
+            "cce": 0.1,
+            "gen_time_s": 24.0,
+            "response_len": 2726
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.523,
+            "cce": 0.1,
+            "gen_time_s": 33.6,
+            "response_len": 3747
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.536,
+            "cce": 0.1,
+            "gen_time_s": 37.4,
+            "response_len": 1702
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.366,
+            "cce": 0.4,
+            "gen_time_s": 44.0,
+            "response_len": 5314
+          }
+        }
+      },
+      "q06": {
+        "query": "Do statins reduce all-cause mortality in low-risk populations?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.605,
+            "cce": 0.1,
+            "gen_time_s": 24.5,
+            "response_len": 2361
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.366,
+            "cce": 0.1,
+            "gen_time_s": 24.4,
+            "response_len": 2518
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.236,
+            "cce": 0.1,
+            "gen_time_s": 33.3,
+            "response_len": 3791
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.375,
+            "cce": 0.1,
+            "gen_time_s": 36.7,
+            "response_len": 1791
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.29,
+            "cce": 0.4,
+            "gen_time_s": 48.6,
+            "response_len": 5908
+          }
+        }
+      },
+      "q07": {
+        "query": "Are there reliable non-pharmaceutical alternatives to statins for cardiovascular risk reduction?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.663,
+            "cce": 0.1,
+            "gen_time_s": 24.3,
+            "response_len": 2888
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.597,
+            "cce": 0.1,
+            "gen_time_s": 25.2,
+            "response_len": 2790
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.703,
+            "cce": 0.1,
+            "gen_time_s": 33.9,
+            "response_len": 3734
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.712,
+            "cce": 0.1,
+            "gen_time_s": 36.8,
+            "response_len": 1554
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.669,
+            "cce": 0.4,
+            "gen_time_s": 43.3,
+            "response_len": 5396
+          }
+        }
+      },
+      "q08": {
+        "query": "Does statin benefit depend on baseline LDL-C level?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.295,
+            "cce": 0.1,
+            "gen_time_s": 24.2,
+            "response_len": 2464
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.502,
+            "cce": 0.1,
+            "gen_time_s": 24.9,
+            "response_len": 2495
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.32,
+            "cce": 0.1,
+            "gen_time_s": 32.6,
+            "response_len": 3392
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.354,
+            "cce": 0.1,
+            "gen_time_s": 37.3,
+            "response_len": 1467
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.253,
+            "cce": 0.4,
+            "gen_time_s": 43.8,
+            "response_len": 5109
+          }
+        }
+      },
+      "q09": {
+        "query": "How should statin therapy be monitored and adjusted in clinical practice?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.428,
+            "cce": 0.1,
+            "gen_time_s": 24.9,
+            "response_len": 2579
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.412,
+            "cce": 0.1,
+            "gen_time_s": 24.7,
+            "response_len": 2409
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.437,
+            "cce": 0.1,
+            "gen_time_s": 33.9,
+            "response_len": 3730
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.473,
+            "cce": 0.1,
+            "gen_time_s": 36.7,
+            "response_len": 1542
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.414,
+            "cce": 0.1,
+            "gen_time_s": 47.7,
+            "response_len": 5616
+          }
+        }
+      }
+    },
+    "minwage": {
+      "q00": {
+        "query": "Does raising the minimum wage increase unemployment?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.542,
+            "cce": 0.2,
+            "gen_time_s": 24.1,
+            "response_len": 2898
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.463,
+            "cce": 0.2,
+            "gen_time_s": 25.1,
+            "response_len": 2799
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.446,
+            "cce": 0.2,
+            "gen_time_s": 31.7,
+            "response_len": 3732
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 0.667,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.612,
+            "cce": 0.2,
+            "gen_time_s": 30.6,
+            "response_len": 1067
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.565,
+            "cce": 0.1,
+            "gen_time_s": 40.5,
+            "response_len": 4668
+          }
+        }
+      },
+      "q01": {
+        "query": "Do minimum wage increases reduce poverty rates?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.503,
+            "cce": 0.2,
+            "gen_time_s": 24.7,
+            "response_len": 2871
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.64,
+            "cce": 0.2,
+            "gen_time_s": 24.0,
+            "response_len": 2855
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.639,
+            "cce": 0.2,
+            "gen_time_s": 32.5,
+            "response_len": 3811
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.69,
+            "cce": 0.2,
+            "gen_time_s": 37.0,
+            "response_len": 1804
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.596,
+            "cce": 0.1,
+            "gen_time_s": 49.0,
+            "response_len": 6068
+          }
+        }
+      },
+      "q02": {
+        "query": "What are the employment effects of minimum wage on youth workers?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.637,
+            "cce": 0.2,
+            "gen_time_s": 24.4,
+            "response_len": 2897
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.596,
+            "cce": 0.2,
+            "gen_time_s": 23.9,
+            "response_len": 2797
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.793,
+            "cce": 0.2,
+            "gen_time_s": 32.8,
+            "response_len": 3784
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.762,
+            "cce": 0.2,
+            "gen_time_s": 36.0,
+            "response_len": 2216
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.584,
+            "cce": 0.1,
+            "gen_time_s": 48.5,
+            "response_len": 5606
+          }
+        }
+      },
+      "q03": {
+        "query": "Does monopsony power in labor markets change minimum wage employment effects?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.807,
+            "cce": 0.2,
+            "gen_time_s": 25.6,
+            "response_len": 2786
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.875,
+            "cce": 0.2,
+            "gen_time_s": 26.7,
+            "response_len": 2810
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.751,
+            "cce": 0.2,
+            "gen_time_s": 31.4,
+            "response_len": 3632
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.807,
+            "cce": 0.2,
+            "gen_time_s": 36.5,
+            "response_len": 1488
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.639,
+            "cce": 0.1,
+            "gen_time_s": 48.8,
+            "response_len": 5618
+          }
+        }
+      },
+      "q04": {
+        "query": "Do minimum wage increases cause price inflation?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.653,
+            "cce": 0.2,
+            "gen_time_s": 24.3,
+            "response_len": 2639
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.603,
+            "cce": 0.2,
+            "gen_time_s": 24.1,
+            "response_len": 2877
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.532,
+            "cce": 0.2,
+            "gen_time_s": 32.4,
+            "response_len": 3928
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.693,
+            "cce": 0.2,
+            "gen_time_s": 36.0,
+            "response_len": 1544
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.623,
+            "cce": 0.1,
+            "gen_time_s": 48.3,
+            "response_len": 5814
+          }
+        }
+      },
+      "q05": {
+        "query": "What causal identification strategies best identify minimum wage employment effects?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.552,
+            "cce": 0.2,
+            "gen_time_s": 24.7,
+            "response_len": 3041
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.524,
+            "cce": 0.2,
+            "gen_time_s": 24.1,
+            "response_len": 2920
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.65,
+            "cce": 0.2,
+            "gen_time_s": 32.7,
+            "response_len": 3912
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.608,
+            "cce": 0.2,
+            "gen_time_s": 37.0,
+            "response_len": 1457
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.475,
+            "cce": 0.1,
+            "gen_time_s": 39.2,
+            "response_len": 4778
+          }
+        }
+      },
+      "q06": {
+        "query": "Do minimum wage increases affect small businesses differently than large employers?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.532,
+            "cce": 0.2,
+            "gen_time_s": 24.3,
+            "response_len": 2990
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.529,
+            "cce": 0.2,
+            "gen_time_s": 24.6,
+            "response_len": 2951
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.664,
+            "cce": 0.2,
+            "gen_time_s": 32.4,
+            "response_len": 4083
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.354,
+            "cce": 0.2,
+            "gen_time_s": 37.8,
+            "response_len": 1856
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.655,
+            "cce": 0.1,
+            "gen_time_s": 49.2,
+            "response_len": 5830
+          }
+        }
+      },
+      "q07": {
+        "query": "Do minimum wage increases improve worker health and wellbeing?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.474,
+            "cce": 0.2,
+            "gen_time_s": 24.6,
+            "response_len": 3181
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.333,
+            "cr": 0.0,
+            "ccs": 0.357,
+            "cce": 0.2,
+            "gen_time_s": 24.4,
+            "response_len": 3252
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.325,
+            "cce": 0.2,
+            "gen_time_s": 32.8,
+            "response_len": 3809
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.436,
+            "cce": 0.2,
+            "gen_time_s": 37.7,
+            "response_len": 1680
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.44,
+            "cce": 0.1,
+            "gen_time_s": 44.8,
+            "response_len": 5645
+          }
+        }
+      },
+      "q08": {
+        "query": "What is the employment effect of minimum wage in rural vs. urban labor markets?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.697,
+            "cce": 0.2,
+            "gen_time_s": 23.8,
+            "response_len": 2885
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.741,
+            "cce": 0.2,
+            "gen_time_s": 25.5,
+            "response_len": 2813
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.713,
+            "cce": 0.4,
+            "gen_time_s": 33.6,
+            "response_len": 4179
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.793,
+            "cce": 0.2,
+            "gen_time_s": 37.0,
+            "response_len": 1820
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.722,
+            "cce": 0.1,
+            "gen_time_s": 47.8,
+            "response_len": 6077
+          }
+        }
+      },
+      "q09": {
+        "query": "Does the evidence support a national or regional minimum wage policy?",
+        "results": {
+          "SYS1_Vanilla": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.333,
+            "cr": 1.0,
+            "ccs": 0.452,
+            "cce": 0.2,
+            "gen_time_s": 24.5,
+            "response_len": 2996
+          },
+          "SYS2_SingleAgent": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.845,
+            "cce": 0.2,
+            "gen_time_s": 24.1,
+            "response_len": 2815
+          },
+          "SYS3_NoGraph": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.5,
+            "ccs": 0.562,
+            "cce": 0.2,
+            "gen_time_s": 32.6,
+            "response_len": 4029
+          },
+          "SYS4_NoMultiView": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 0.0,
+            "ccs": 0.835,
+            "cce": 0.2,
+            "gen_time_s": 36.8,
+            "response_len": 1659
+          },
+          "SYS5_EVIRAG_Full": {
+            "vc_kw": 1.0,
+            "vc_emb": 0.0,
+            "cr": 1.0,
+            "ccs": 0.528,
+            "cce": 0.2,
+            "gen_time_s": 48.5,
+            "response_len": 6244
+          }
+        }
+      }
+    }
+  },
+  "claim_graph_summary": {
+    "homework": 0,
+    "statins": 0,
+    "minwage": 4
+  },
+  "corpus_summary": {
+    "homework": 8,
+    "statins": 5,
+    "minwage": 5
+  },
+  "latex_table": "\\begin{table*}[t]\n\\centering\\small\n\\setlength{\\tabcolsep}{4pt}\n\\begin{tabular}{@{}lrrrrr@{}}\n\\toprule\n\\textbf{System} & VC$_\\text{kw}$$\\uparrow$ & VC$_\\text{emb}$$\\uparrow$ & CR$\\uparrow$ & CCS$\\downarrow$ & CCE$\\downarrow$ \\\\\n\\midrule\nVanilla RAG & 0.989 & 0.011 & 0.583$^\\dagger$ & 0.562 & 0.117 \\\\\nSingle-agent & 0.989 & 0.011 & 0.583$^\\dagger$ & 0.573 & 0.117 \\\\\n\\system-NoGraph & 1.000 & 0.011 & 0.600$^\\dagger$ & 0.568 & 0.133 \\\\\n\\system-NoMultiView & 0.878 & 0.000 & 0.417$^\\dagger$ & 0.606 & 0.110 \\\\\n\\textbf{\\system\\ Full} & 0.989 & 0.000 & 0.750 & 0.524 & 0.240 \\\\\n\\bottomrule\n\\end{tabular}\n\\caption{Multi-domain ablation across 30 queries (3 domains $\\times$ 10 queries each). VC$_\\text{kw}$: keyword-based ViewpointCoverage. VC$_\\text{emb}$: embedding-based VC (Theorem~\\ref{thm:collapse} formulation, $\\delta=0.3$). CR: ContradictionRecall. CCS: ConsensusCollapseScore (lower$=$better). CCE: ConfidenceCalibrationError (lower$=$better). $^\\dagger$: significant vs.\\ \\system\\ Full (Wilcoxon signed-rank, Bonferroni-corrected $\\alpha=0.0125$). Bootstrap 95\\% CI from 1000 iterations.}\n\\label{tab:main_results}\n\\end{table*}"
+}

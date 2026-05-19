@@ -1,370 +1,333 @@
-# EVIRAG: Epistemic-Fidelity-First Retrieval-Augmented Generation
+# EVIRAG: Evidence-Centric, Disagreement-Aware Scientific RAG
 
-> **Standard RAG commits epistemic collapse — compressing genuine scientific controversy into false consensus. EVIRAG is the first RAG framework that treats disagreement as the primary output signal, not noise to suppress.**
+> **Standard scientific RAG compresses genuine expert disagreement into a single fluent answer — erasing viewpoint diversity. EVIRAG treats disagreement as the primary output signal, not noise to suppress.**
 
-## The Problem: Epistemic Collapse in Scientific RAG
+This repository accompanies the paper:  
+**"Against Epistemic Collapse: Disagreement-Aware Scientific Retrieval-Augmented Generation"**  
+Anonymous submission — EMNLP 2026  
+Benchmark and evaluation materials: [https://anonymous.4open.science/r/evirag-search-76F5](https://anonymous.4open.science/r/evirag-search-76F5)
 
-When asked *"Does homework improve academic achievement?"*, a standard RAG system says:
-> "Research shows homework improves academic performance."
+---
 
-EVIRAG says:
-> **Dominant view** (5 sources, high confidence): *No conclusive evidence of improvement since 1987.*
-> **Alternative view** (3 sources): *Effects depend on design, grade level, and subject.*
-> **Minority view** (2 sources): *Excess homework correlates with reduced wellbeing.*
-> Disagreement density: 5.3% | Confidence: MEDIUM | Controversy class: stable
+## The Problem: Epistemic Collapse
 
-The first answer is fluent but epistemically false. The second is honest about the state of knowledge.
+When asked *"Does homework improve academic achievement?"*, a standard RAG system returns:
 
-This gap — between what existing RAG produces and what scientific epistemology requires — is what EVIRAG addresses.
+> "Research shows that homework improves academic performance, with stronger effects for older students."
 
-### Why existing approaches don't solve this
+EVIRAG returns:
 
-| System | Their framing | What they still do |
-|---|---|---|
-| MADAM-RAG (2025) | Ambiguity + misinformation | Debate to find best answer — consensus-seeking |
-| ContraCrow / PaperQA2 | Contradiction detection | Binary label per claim — no multi-view synthesis |
-| SciFact | Claim verification | SUPPORTS/REFUTES — adjudicates rather than surfaces |
-| TruthfulRAG | Factual conflict | Suppresses conflicting sources |
-| **EVIRAG** | **Scientific controversy** | **Structures and surfaces the disagreement** |
+> **View 1 — Dominant [6 sources, confidence: medium]:** Homework improves achievement for grades 7–12 (d≈0.30); near-zero effect for primary grades. *(CDA-7: methodological)*  
+> **View 2 — Alternative [3 sources, confidence: medium]:** No significant effect after controlling for SES and teacher quality. *(CDA-7: statistical + methodological)*  
+> **View 3 — Minority [2 sources, confidence: low]:** High homework loads harm wellbeing with no academic benefit. *(CDA-7: operational)*  
+> Controversy class: **Stable** | CCS: 0.52
 
-The distinction: existing systems treat conflict as *ambiguity* (multiple correct answers) or *noise* (misinformation). EVIRAG treats it as *controversy* — genuine expert disagreement that is epistemically premature to resolve.
+The first answer is fluent but epistemically incomplete. The second is honest about the state of the literature.
 
-## ✨ Key Features
+---
 
-### 1. Evidence Over Fluency
-- Claims extracted as atomic, verifiable units
-- Relationships explicitly modeled (support/contradict)
-- Visual evidence aligned with textual claims using CLIP
-
-### 2. Disagreement Over Consensus
-- Multi-view answers instead of single confident response
-- Disagreement graph construction
-- Confidence calibrated from evidence structure
-
-### 3. Verification Before Synthesis
-- Explanation-first verification (X-IR)
-- Hypothesis generation before retrieval
-- Claims verified against retrieved evidence
-
-### 4. Multi-Agent Deliberation
-- **Precision Agent**: High-confidence support
-- **Recall Agent**: Broad coverage
-- **Skeptic Agent**: Find contradictions
-- **Counterfactual Agent**: Alternative explanations
-
-### 5. Visual Evidence Integration
-- Figure extraction from PDFs
-- CLIP-based visual-text alignment
-- Visual evidence strength in confidence calibration
-
-## 🏗️ Architecture
+## Seven-Stage Pipeline
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     Streamlit UI Layer                       │
-│  (Multi-view answer | Graph | Claims | Visual | Metrics)    │
-└─────────────────────────────────────────────────────────────┘
-                              │
-┌─────────────────────────────────────────────────────────────┐
-│                    EVIRAG Core System                        │
-├─────────────────────────────────────────────────────────────┤
-│  1. Epistemic Intent Analysis (SLM: phi-3:mini)             │
-│  2. Hypothesis Generation (LLM: llama3:latest)              │
-│  3. Multi-Agent Retrieval                                    │
-│     ├── Precision Agent (llama3)                            │
-│     ├── Recall Agent (qwen2.5:4b)                           │
-│     ├── Skeptic Agent (llama3)                              │
-│     └── Counterfactual Agent (deepseek-r1:7b)              │
-│  4. Claim Extraction (SLM filter → LLM extract)             │
-│  5. Disagreement Graph Construction                         │
-│  6. Visual Evidence Analysis (CLIP ViT-B/16)                │
-│  7. Multi-View Synthesis                                     │
-│  8. Confidence Calibration                                   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-┌─────────────────────────────────────────────────────────────┐
-│                      Data Layer                              │
-├─────────────────────────────────────────────────────────────┤
-│  • PDF Processing (PyMuPDF)                                 │
-│  • Section-aware Chunking                                    │
-│  • Embeddings (sentence-transformers/MiniLM)                │
-│  • Vector Store (FAISS)                                      │
-│  • Figure Extraction & CLIP Embeddings                       │
-└─────────────────────────────────────────────────────────────┘
+Query
+  │
+  ▼
+Stage 1: Intent Analysis          — estimates controversy level, scales retrieval
+  │
+  ▼
+Stage 2: Adversarial Retrieval    — four agents with distinct epistemic objectives
+  ├── Precision Agent             — high-confidence supporting evidence
+  ├── Recall Agent                — broad corpus coverage
+  ├── Skeptic Agent               — contradictory and dissenting findings
+  └── Counterfactual Agent        — alternative framings and minority positions
+  │
+  ▼
+Stage 3: Claim Graph Construction — atomic claim extraction + NLI-based disagreement graph G
+  │
+  ▼
+Stage 4: CDA-7 Attribution        — causal disagreement type for each contradiction edge
+  │
+Stage 5: Temporal Drift (TDC)     — publication-year trend in disagreement density
+  │
+  ▼
+Stage 6: Multi-View Synthesis     — Louvain community detection on G → one view per community
+  │
+  ▼
+Stage 7: Evidence-Structured Confidence — calibrated confidence from claim agreement,
+                                          source diversity, contradiction severity, CDA-7 priors
 ```
 
-## 📁 Project Structure
+### CDA-7 Disagreement Taxonomy
+
+Each contradiction edge in the claim graph is labeled with its causal type:
+
+| Class | Description |
+|-------|-------------|
+| **Methodological** | Different experimental designs or protocols |
+| **Population** | Different study populations or settings |
+| **Temporal** | Newer evidence supersedes older claims |
+| **Operational** | Different operationalizations of key terms |
+| **Statistical** | Conflicting effect-size or p-value interpretations |
+| **Theoretical** | Competing theoretical frameworks |
+| **Replication** | Failure to replicate original findings |
+
+---
+
+## Repository Structure
 
 ```
-evirag/
-├── config.py                    # Centralized configuration
-├── evirag_system.py            # Main EVIRAG orchestrator
-├── requirements.txt             # Dependencies
-├── README.md                    # This file
+evirag-search/                     ← root
 │
-├── data/
-│   └── data_layer.py           # PDF processing, chunking, indexing
+├── README.md                      ← this file
+├── requirements.txt               ← Python dependencies
+├── config.py                      ← centralized configuration (models, paths, prompts)
 │
-├── models/
-│   ├── epistemic_engine.py     # Intent analysis, hypothesis, claims, NLI
-│   ├── vlm_module.py           # CLIP embedding & visual alignment
-│   └── disagreement.py         # Graph, metrics, synthesis, calibration
+├── Core pipeline
+│   ├── epistemic_engine.py        ← intent analysis, claim extraction, NLI
+│   ├── multi_agent.py             ← four-agent adversarial retrieval
+│   ├── claim_graph.py             ← disagreement graph construction
+│   ├── causal_attribution.py      ← CDA-7 classification
+│   ├── temporal_tracker.py        ← temporal disagreement curve
+│   ├── disagreement.py            ← graph metrics (CCS, ED, PI)
+│   ├── epistemic_divergence.py    ← viewpoint separation measures
+│   ├── data_layer.py              ← PDF processing, chunking, FAISS indexing
+│   ├── vlm_module.py              ← CLIP visual-text alignment
+│   ├── groq_client.py             ← Groq API client (cloud backend)
+│   └── ollama_cloud_client.py     ← Ollama cloud client
 │
-├── agents/
-│   └── multi_agent.py          # Multi-agent deliberative retrieval
+├── Entry points
+│   ├── run.py                     ← command-line query runner
+│   ├── fastapi_service.py         ← REST API service
+│   ├── streamlit_app.py           ← Streamlit UI
+│   ├── serve_frontend.py          ← serves the React frontend locally
+│   └── evirag_system.py           ← high-level system wrapper
 │
-├── ui/
-│   └── streamlit_app.py        # Streamlit interface
+├── Evaluation
+│   ├── evaluation_framework.py    ← CR, VC_emb, VC_kw, CCS, CCE, FS metrics
+│   ├── evirag_eval_qwen32b.py     ← evaluation script (Qwen3.6-35B backbone)
+│   ├── benchmark_fast_graph.py    ← fast offline graph benchmarking
+│   └── autoresearch_eval.py       ← automated research evaluation
 │
-└── corpus/                      # Place your PDF files here
+├── Utility scripts
+│   ├── quick_run.py               ← quick sanity-check query
+│   ├── quickstart.py              ← guided first-run setup
+│   ├── mode_comparison.py         ← compare vanilla RAG vs EVIRAG output
+│   ├── run_full_pipeline_fixed.py ← end-to-end pipeline runner
+│   └── rebuild_visual_cache.py    ← rebuild CLIP figure cache
+│
+├── corpus/                        ← place scientific PDFs here (sample papers included)
+├── data/                          ← auto-generated (embeddings, vector store, cache)
+│
+├── benchmark/                     ← EVIRAG-Bench materials
+│   ├── README.md
+│   ├── queries/sample_queries.json
+│   ├── prompts/system_prompts.md
+│   └── annotation_guide/cda7_decision_tree.md
+│
+├── evirag/                        ← React frontend (Vercel deployment)
+├── evirag_legacy/                 ← previous frontend version
+│
+├── hf_backend/                    ← Hugging Face Spaces backend
+│   ├── app.py
+│   ├── Dockerfile
+│   └── requirements.txt
+│
+├── evirag-search/                 ← large-scale search backend (100k+ papers)
+│   ├── search_backend.py
+│   ├── fast_pipeline.py
+│   └── pipeline/                  ← data pipeline scripts
+│
+├── paper/latex/                   ← LaTeX source for the research paper
+│   ├── acl_latex.tex
+│   ├── custom.bib
+│   └── acl_latex.pdf
+│
+└── tests/                         ← test scripts
 ```
 
-## 🚀 Getting Started
+---
 
-### Prerequisites
+## Setup
 
-1. **Ollama** with models:
-   ```bash
-   ollama pull phi3:mini
-   ollama pull llama3:latest
-   ollama pull qwen2.5:4b
-   ollama pull deepseek-r1:7b
-   ```
+### Requirements
 
-2. **Python 3.9+**
+- Python 3.9+
+- [Ollama](https://ollama.com) (for local inference) **or** a Groq API key (for cloud inference)
 
-### Installation
-
-1. Clone and navigate to project:
-   ```bash
-   cd evirag
-   ```
-
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt --break-system-packages
-   ```
-
-3. Add your corpus:
-   ```bash
-   # Place PDF files in corpus/ directory
-   mkdir -p corpus
-   # Copy your scientific PDFs to corpus/
-   ```
-
-### Running EVIRAG
-
-#### Option 1: Streamlit UI (Recommended)
+### Install
 
 ```bash
-streamlit run ui/streamlit_app.py
+git clone https://github.com/amethystani/evirag-search
+cd evirag-search
+pip install -r requirements.txt
 ```
 
-Then:
-1. Click "Initialize System" in sidebar
-2. Enter your scientific question
-3. Click "Query" to see multi-view results
+### Add your corpus
 
-#### Option 2: Python API
+Place scientific PDF files in the `corpus/` directory. The repository includes seven sample homework-effectiveness papers to get started.
+
+```bash
+ls corpus/    # seven sample papers included
+```
+
+### Configure the model backend
+
+Copy `.env.example` to `.env` and set your preferred backend:
+
+**Option A — Local Ollama (used in paper experiments):**
+```bash
+# Pull the model used in experiments
+ollama pull qwen3.6:35b-a3b
+
+# .env
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_CLOUD_MODEL=qwen3.6:35b-a3b
+```
+
+**Option B — Groq API (faster, no local GPU required):**
+```bash
+# .env
+GROQ_API_KEY=your_key_here
+```
+
+---
+
+## Running EVIRAG
+
+### Command-line
+
+```bash
+python run.py "Does homework improve academic achievement?"
+```
+
+### Streamlit UI
+
+```bash
+streamlit run streamlit_app.py
+```
+
+Open [http://localhost:8501](http://localhost:8501), click **Initialize System**, then enter a query.
+
+### REST API
+
+```bash
+uvicorn fastapi_service:app --reload
+# POST http://localhost:8000/query
+# {"query": "Do statins prevent cardiovascular events?", "mode": "evirag"}
+```
+
+### Python API
 
 ```python
 from evirag_system import EVIRAGSystem, EVIRAGConfig
 
-# Initialize
-config = EVIRAGConfig(
-    mode="evirag",
-    use_visual_grounding=True,
-    depth_vs_speed="balanced"
-)
-
+config = EVIRAGConfig(mode="evirag")
 system = EVIRAGSystem(config)
 system.initialize_corpus()
 
-# Query
-result = system.query(
-    "Is overparameterization necessary for generalization in deep neural networks?"
-)
+result = system.query("Does raising the minimum wage reduce employment?")
 
-# Access results
-print(result['answer']['dominant_view']['summary'])
-print(f"Confidence: {result['answer']['overall_confidence']}")
+for view in result["answer"]["views"]:
+    print(f"[{view['label']}] {view['summary']}")
+    print(f"  Sources: {view['source_count']} | CDA-7: {view['cda7_attribution']}")
+    print(f"  Confidence: {view['confidence']}")
 ```
-
-## 🎮 Execution Modes
-
-### 1. Vanilla RAG (Baseline)
-Standard retrieval-augmented generation:
-- Simple semantic search
-- Direct synthesis  
-- No disagreement modeling
-- Fast baseline for comparison
-
-### 2. EVIRAG (Full Pipeline)
-Complete evidence-centric pipeline with all features:
-- Epistemic intent analysis
-- Hypothesis generation  
-- Multi-agent deliberative retrieval
-- Claim extraction and disagreement graph
-- Visual evidence grounding
-- Full confidence calibration
-
-## 📊 Key Components
-
-### Epistemic Intent Analyzer
-Classifies queries along dimensions:
-- Factual vs Disputed
-- Empirical vs Theoretical
-- Expected Disagreement Level
-
-### Explanation-First Verification (X-IR)
-Generates hypothesis before retrieval:
-```json
-{
-  "central_hypothesis": "...",
-  "supporting_claims": [...],
-  "assumptions": [...],
-  "expected_counterclaims": [...]
-}
-```
-
-### Multi-Agent Deliberation
-Each agent has specialized objectives:
-- **Precision**: Strict semantic, high-confidence support
-- **Recall**: Expansive semantic, broad coverage
-- **Skeptic**: Adversarial semantic, find contradictions
-- **Counterfactual**: Alternative explanations
-
-### Disagreement Metrics
-- **Disagreement Density**: Ratio of contradictory edges
-- **Conflict Ratio**: Contradictions vs supports
-- **Claim Entropy**: Diversity of claim stances
-- **Conflict Centrality**: Claims central to conflicts
-- **Visual-Text Mismatch**: Alignment score
-
-### Confidence Calibration
-Weighted factors:
-- Claim agreement (30%)
-- Source diversity (20%)
-- Contradiction severity (25%)
-- Unverified assumptions (15%)
-- Visual alignment (10%)
-
-## 🔬 Example Query Flow
-
-**Query**: "Is overparameterization necessary for generalization in deep neural networks?"
-
-1. **Intent Analysis**:
-   - Factual vs Disputed: `highly_disputed`
-   - Disagreement Level: `high`
-
-2. **Hypothesis Generation**:
-   - Central: "Overparameterization can improve generalization"
-   - Supporting: ["Double descent phenomenon", "Implicit regularization"]
-   - Expected counters: ["Overfitting risk", "Classical bias-variance"]
-
-3. **Multi-Agent Retrieval**:
-   - Precision: Finds 5 high-confidence papers on double descent
-   - Recall: Retrieves 15 diverse papers
-   - Skeptic: Finds 8 papers on overfitting concerns
-   - Counterfactual: Retrieves 6 papers on alternative regularization
-
-4. **Claim Extraction**: 47 atomic claims extracted
-
-5. **Graph Construction**: 23 support, 15 contradict, 9 neutral edges
-
-6. **Visual Analysis**: 12 figures aligned, 0.3 mismatch score
-
-7. **Synthesis**:
-   - **Dominant View**: "Evidence supports conditional benefits..."
-   - **Alternative**: "Classical wisdom on bias-variance..."
-   - **Minority**: "Data quality matters more..."
-
-8. **Confidence**: `MEDIUM (0.62)` - Mixed evidence, active debate
-
-## 🎯 Use Cases
-
-- **Literature Review**: Surface competing viewpoints
-- **Research Planning**: Identify gaps and controversies
-- **Claim Verification**: Check evidence strength
-- **Thesis Development**: Understand debate landscape
-- **Meta-Analysis**: Aggregate conflicting findings
-
-## ⚙️ Configuration
-
-Edit `config.py` to customize:
-
-- Model selection and parameters
-- Embedding dimensions
-- Agent retrieval strategies
-- Confidence calibration weights
-- Graph construction rules
-
-## 📈 Evaluation
-
-Metrics (planned):
-- Hallucination rate
-- Contradiction detection accuracy
-- Viewpoint coverage
-- Confidence calibration error
-- Visual grounding impact
-
-Baselines:
-- Vanilla RAG
-- Single-agent RAG
-
-## 🔧 System Requirements
-
-- **RAM**: 16 GB recommended (M1 Mac or equivalent)
-- **Storage**: ~5 GB for models + corpus
-- **GPU**: Optional (uses CPU/MPS)
-- **Models**: All local via Ollama
-
-## 🚨 Limitations
-
-- Corpus size: Optimal for 1-2 GB PDFs (~500-1000 papers)
-- Processing time: 30s-2min per query depending on mode
-- CLIP: Alignment only, no language generation
-- Graph: Max 500 nodes to prevent explosion
-
-## 🛣️ Roadmap
-
-- [ ] n8n orchestration workflows
-- [ ] Batch evaluation framework
-- [ ] Interactive graph visualization (PyVis)
-- [ ] Export to citation managers
-- [ ] Multi-domain extension
-- [ ] Temporal disagreement tracking
-
-## 📚 Citation
-
-```bibtex
-@software{evirag2025,
-  title={EVIRAG: Evidence-Centric, Disagreement-Aware RAG},
-  author={Your Name},
-  year={2025},
-  url={https://github.com/yourusername/evirag}
-}
-```
-
-## 📄 License
-
-MIT License - See LICENSE file
-
-## 🤝 Contributing
-
-Contributions welcome! Areas:
-- Agent strategies
-- Disagreement metrics
-- Visual grounding improvements
-- Evaluation benchmarks
-- UI/UX enhancements
-
-## 📞 Contact
-
-For questions or collaboration:
-- GitHub Issues
-- Email: your.email@domain.com
 
 ---
 
-**EVIRAG**: *Because scientific truth lives in the disagreement, not the consensus.*
+## Evaluation
+
+EVIRAG-Bench contains 250 queries across five contested scientific domains. A 25-query sample is included in `benchmark/queries/sample_queries.json`.
+
+```bash
+python evaluation_framework.py \
+  --predictions your_output.json \
+  --ground_truth benchmark/queries/sample_queries.json
+```
+
+### Metrics
+
+| Metric | Description |
+|--------|-------------|
+| **CR** | ContradictionRecall — fraction of annotated contradictions recovered |
+| **VC_emb** | ViewpointCoverage (dense encoder, all-MiniLM-L6-v2, θ=0.65) |
+| **VC_kw** | ViewpointCoverage (keyword overlap) |
+| **CCS** | Consensus Collapse Score — asymmetry in viewpoint coverage |
+| **CCE** | Confidence Calibration Error |
+| **FS** | FaithfulnessScore (FActScore-style NLI verification) |
+
+### Main results (EVIRAG-Bench, 250 queries)
+
+| System | CR↑ | VC_emb↑ | CCS↓ | FS↑ |
+|--------|-----|---------|------|-----|
+| Vanilla RAG | 0.572 | 0.423 | 0.571 | 0.824 |
+| MADAM-RAG | 0.618 | 0.508 | 0.549 | 0.856 |
+| MMR-RAG | 0.595 | 0.534 | 0.547 | 0.839 |
+| PaperQA2 | 0.553 | 0.467 | 0.583 | **0.903** |
+| **EVIRAG Full** | **0.742** | **0.847** | **0.518** | 0.891 |
+
+Human evaluation (50 queries, 3 annotators, 5-point epistemic completeness scale):  
+**EVIRAG Full: 4.3/5 vs Vanilla RAG: 2.1/5** (Krippendorff's α=0.72, p<0.001, Cohen's d=2.71)
+
+---
+
+## Baselines
+
+All baseline implementations are included and use the same corpus and backbone model:
+
+| System | Description |
+|--------|-------------|
+| Vanilla RAG | Dense retrieval + single-view synthesis |
+| Single-agent | Precision agent only, single-view synthesis |
+| EVIRAG-NoGraph | Adversarial retrieval without claim graph |
+| EVIRAG-NoMultiView | Claim graph without multi-view output |
+| MADAM-RAG | Multi-agent debate → resolved single answer |
+| MMR-RAG | Maximal Marginal Relevance retrieval, single-view |
+| PaperQA2 | Citation-grounded scientific QA |
+
+Prompt templates for all systems are in `benchmark/prompts/system_prompts.md`.
+
+---
+
+## Offline Mode (Fast Path)
+
+The claim graph can be precomputed offline over the full corpus (one-time cost). At query time, inference slices a retrieved subgraph rather than rerunning pairwise NLI.
+
+```bash
+# Precompute graph (run once)
+python benchmark_fast_graph.py --precompute
+
+# Query using cached graph (fast path)
+python run.py "Does saturated fat increase cardiovascular risk?" --fast
+```
+
+Benchmark result: **0.43 s** warm-query latency vs **10.62 s** for vanilla RAG (25.6× speedup).
+
+---
+
+## Hardware Used in Paper Experiments
+
+- GPU: NVIDIA RTX 4500 Ada (24 GB VRAM)
+- Model: `qwen3.6:35b-a3b` via Ollama (`think=False`)
+- Embeddings: `sentence-transformers/all-MiniLM-L6-v2` (d=384)
+- Corpus: 75 papers (3,247 chunks, 4,831 atomic claims)
+
+Cross-backbone validation on the education subset confirms consistent gains with Qwen2.5-7B and Llama-3.1-70B.
+
+---
+
+## System Constraints
+
+| Setting | Value |
+|---------|-------|
+| Retrieval budget | 15 chunks (3+5+4+3 across agents) |
+| Max claims per query | 60 (15 per agent) |
+| Chunk size | 256 tokens, 32-token overlap |
+| Community detection | Louvain on signed claim adjacency matrix |
+| NLI threshold | 0.45 minimum edge confidence |
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).

@@ -2,36 +2,76 @@
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 *.egg-info/
 dist/
 build/
 .venv/
 venv/
+*.egg
 
-# Data
-raw_corpus/
-embeddings/
-/data/
-
-# Env
+# Environment
 .env
 .env.local
+.env.*
+
+# Data and generated files
+/data/cache/
+/data/embeddings/
+/data/vector_store/
+/data/figures/
+*.faiss
+*.index
+*.npy
+*.parquet
+
+# Test output logs
+*_output.txt
+*_test.txt
+chat_output.txt
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.toc
+*.synctex.gz
+texput.log
+missfont.log
 
 # OS
 .DS_Store
-*.swp
-*.swo
-*~
+.DS_Store?
+._*
+Thumbs.db
 
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
 
 # Temp
 *.tmp
-.pytest_cache/
+tmp/
 
-# Large files (already in HF)
-*.index
-*.npy
-*.parquet
+# Claude Code
+.claude/
+
+# Playwright
+.playwright-mcp/
+
+# Zip archives
+*.zip
+
+# Uploads (user screenshots)
+evirag/uploads/
+evirag_legacy/uploads/
