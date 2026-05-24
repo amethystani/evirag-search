@@ -17,6 +17,10 @@
 \usepackage{array}
 \usepackage{tikz}
 \usetikzlibrary{shapes,arrows,positioning,calc}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+\renewcommand{\algorithmicensure}{\textbf{Output:}}
 
 \newcommand{\system}{\textsc{EVIRAG}\xspace}
 \newcommand{\bench}{\textsc{EVIRAG-Bench}\xspace}
@@ -397,6 +401,26 @@ Together, ED, PI, and EC@K complement CCS~(Eq.~\ref{eq:ccs}) by capturing
 viewpoint separation, conflict structure, and retrieval-side coverage in ways
 that standard relevance metrics cannot.
 
+\paragraph{Evaluation metrics (borrowed and novel).}
+\textbf{ContradictionRecall (CR)} is the fraction of gold-annotated
+contradictory claim pairs that a system recovers in its output; it adapts
+the standard precision/recall paradigm from scientific claim verification
+\citep{wadden2020scifact}.
+\textbf{ViewpointCoverage (VC)} is the fraction of annotated ground-truth
+viewpoints surfaced in the response, assessed by keyword overlap
+(VC$_\text{kw}$) and by dense-encoder cosine similarity
+(VC$_\text{emb}$; \texttt{all-MiniLM-L6-v2}~\citep{reimers2019sentence},
+threshold $\theta{=}0.65$); the embedding variant follows the coverage
+framing of \citet{malaviya2024expertqa}.
+\textbf{CCE} (Confidence Calibration Error) is the mean absolute deviation
+between the system's emitted confidence tier and the gold controversy-class
+label; lower CCE indicates better-calibrated uncertainty signals.
+\textbf{FaithfulnessScore (FS)} follows FActScore-style NLI
+verification~\citep{min2023factscore}: each atomic claim in the response is
+verified against its cited source chunks and the fraction supported is
+reported.  CR, VC, CCS, CCE, and FS are the five metrics used throughout
+\S\ref{sec:eval}.
+
 \subsection{Controversy Typology}
 \label{sec:taxonomy}
 
@@ -499,63 +523,143 @@ reported certainty.}
 \label{fig:architecture}
 \end{figure*}
 
-\paragraph{Stage 1: Intent analysis.}
-The system estimates whether a query is likely to be disputed and scales
-retrieval effort accordingly.
+Algorithm~\ref{alg:evirag} formalises the complete pipeline.  We highlight
+key design choices for each stage below.
 
-\paragraph{Stage 2: Adversarial retrieval.}
-\system\ deploys four agents with distinct epistemic objectives designed to
-break the consensus attractor:
+\begin{algorithm}[t]
+\small
+\caption{\system\ Seven-Stage Inference Pipeline}
+\label{alg:evirag}
+\begin{algorithmic}[1]
+\Require Query $q$;\enspace corpus $D = \{d_1,\ldots,d_n\}$
+\Ensure Structured views $\{(v_l,\,\mathrm{conf}_l)\}_{l=1}^{k}$
+
+\Statex \textbf{Stage 1 — Intent Analysis}
+\State $\hat{c} \gets \textsc{EstimateControversy}(q)$
+\State $\mathbf{b} \gets \textsc{ScaleRetrieval}(\hat{c})$
+  \hfill\Comment{budget vector per agent}
+
+\Statex \textbf{Stage 2 — Adversarial Retrieval}
+\For{$a \in \{\text{Prec.},\;\text{Rec.},\;\text{Skep.},\;\text{CF}\}$}
+  \State $q_a \gets \textsc{AdversarialQuery}(q,\,a)$
+  \State $P_a \gets \textsc{DenseRetrieve}(q_a,\;D,\;b_a)$
+\EndFor
+\State $P \gets \textsc{Deduplicate}\!\bigl(\textstyle\bigcup_a P_a\bigr)$
+
+\Statex \textbf{Stage 3 — Claim Graph Construction}
+\State $C \gets \textsc{ExtractAtomicClaims}(P)$
+\State $G{=}(C,E) \gets \textsc{NLILabel}(C)$
+  \hfill\Comment{$e\in\{\textsc{supports},\;\textsc{contradicts},\;\textsc{neutral}\}$}
+
+\Statex \textbf{Stage 4 — CDA-7 Attribution}
+\For{each $(c_i,c_j)\in E$ s.t.\ label $= \textsc{contradicts}$}
+  \State $\tau_{ij} \gets \textsc{CDA7Classify}(c_i,c_j)$
+    \hfill\Comment{$\tau \in \{$Meth., Pop., Temp., Op., Stat., Th., Rep.$\}$}
+\EndFor
+
+\Statex \textbf{Stage 5 — Temporal Drift}
+\State $\mathrm{TDC} \gets \textsc{TDCurve}(C,\;\{\mathrm{year}(c)\}_{c\in C})$
+  \hfill\Comment{publication-year disagreement trend}
+
+\Statex \textbf{Stage 6 — Multi-View Synthesis}
+\State $\{\mathcal{C}_1,\ldots,\mathcal{C}_k\} \gets \textsc{LouvainCommunities}(G)$
+\For{$l = 1$ \textbf{to} $k$}
+  \State $v_l \gets \textsc{SynthesizeView}(\mathcal{C}_l)$
+    \hfill\Comment{summary, provenance, weaknesses}
+\EndFor
+
+\Statex \textbf{Stage 7 — Evidence-Structured Confidence}
+\For{$l = 1$ \textbf{to} $k$}
+  \State $\mathrm{conf}_l \gets \textsc{ConfScore}(\mathcal{C}_l,\;\mathrm{TDC},\;\{\tau_{ij}\})$
+\EndFor
+\State \Return $\{(v_l,\,\mathrm{conf}_l)\}_{l=1}^{k}$
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Adversarial retrieval design (Stage 2).}
+Four agents with orthogonal epistemic objectives break the consensus attractor:
 \begin{itemize}[leftmargin=*,nosep]
   \item \textbf{Precision}: Retrieve high-confidence supporting evidence.
   \item \textbf{Recall}: Broaden corpus coverage.
-  \item \textbf{Skeptic}: Actively search for contradictory evidence.
-  \item \textbf{Counterfactual}: Retrieve alternative framings.
+  \item \textbf{Skeptic}: Actively search for contradictory and dissenting evidence.
+  \item \textbf{Counterfactual}: Retrieve alternative framings and minority positions.
 \end{itemize}
-The Skeptic agent is the main defense against the consensus attractor.
-For example, the Skeptic agent receives: ``\textit{Find passages that
-challenge, contradict, or qualify the dominant view on [query].  Focus on
-dissenting findings, null results, and critical analyses.}''  Full prompt
-templates for all four agents appear in the supplementary material.
+The Skeptic agent is the primary defense against the consensus attractor.
+Its prompt instructs it to: \textit{``Find passages that challenge, contradict,
+or qualify the dominant view.  Focus on dissenting findings, null results, and
+critical analyses.''}  Full prompt templates appear in the supplementary material.
 
-\paragraph{Stages 3--5: Graph construction and disagreement analysis.}
+\paragraph{CDA-7 disagreement taxonomy (Stage 4).}
 \label{sec:cda7}
-Retrieved passages are decomposed into atomic claims and linked in a
-disagreement graph $G$.  \system\ then labels contradictions with CDA-7,
+Retrieved passages are decomposed into atomic claims and linked in $G$.
+Each contradiction edge is then labelled with a causal type from CDA-7,
 grounded in \citet{longino2002science} and \citet{solomon2001social}:
 \begin{enumerate}[leftmargin=*,nosep,label=\arabic{enumi}.]
   \item \textbf{Methodological}: Different experimental designs or protocols.
   \item \textbf{Population}: Different study populations or settings.
   \item \textbf{Temporal}: Newer evidence supersedes older claims.
   \item \textbf{Operational}: Different operationalizations of key terms.
-  \item \textbf{Statistical}: Conflicting effect sizes or $p$-value
-    interpretations.
+  \item \textbf{Statistical}: Conflicting effect sizes or $p$-value interpretations.
   \item \textbf{Theoretical}: Competing theoretical frameworks.
   \item \textbf{Replication}: Failure to replicate original findings.
 \end{enumerate}
-As a secondary signal, the system also tracks publication-year trends in
-disagreement density (temporal drift), though this component is not separately
-ablated in the current study.
 
-\paragraph{Stages 6--7: Multi-view synthesis and confidence.}
+\paragraph{Synthesis and confidence (Stages 6--7).}
 Communities in $G$ are identified via Louvain modularity optimization on the
-signed claim adjacency matrix; the number of output views is determined
-dynamically by the partition rather than fixed a priori.
-Each community becomes one view with a short summary, supporting claims,
-source provenance, and explicit weaknesses.  Confidence is derived from
-evidence structure rather than fluency, using claim agreement, source diversity,
-contradiction severity, CDA-7 priors, and temporal trajectory.
+signed claim adjacency matrix; view count is determined dynamically by the
+partition.  Each community becomes one view with a summary, supporting claims,
+provenance, and explicit weaknesses.  Confidence is derived from claim
+agreement, source diversity, contradiction severity, CDA-7 priors, and
+temporal trajectory --- not from fluency.
 
 \paragraph{Offline mode.}
 Because pairwise relation labeling is expensive, \system\ can precompute a
-global claim graph offline and answer new queries by slicing a retrieved
-subgraph at inference time.
+global claim graph offline and answer queries by slicing a retrieved subgraph
+at inference time (mean warm-query latency: $0.43$\,s; see
+Table~\ref{tab:latency}).
 
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{Evaluation}
 \label{sec:eval}
 
-\subsection{EVIRAG-Bench}
+\subsection{Dataset and Corpus Construction}
+\label{sec:corpus}
+
+The evaluation corpus comprises 75 peer-reviewed papers drawn from five
+contested scientific domains: education (homework effectiveness), biomedicine
+(statin primary prevention), economics (minimum-wage employment effects),
+earth sciences (climate feedback mechanisms), and nutrition science (dietary
+fat and cardiovascular risk).  Fifteen papers per domain were selected to
+provide representational coverage of both dominant and minority positions;
+papers were identified through domain-expert recommendations and forward/
+backward citation tracing from high-citation seed papers.  Each paper was
+processed with section-aware chunking (256-token chunks, 32-token overlap)
+yielding 3,247 text chunks.  Atomic claim extraction was applied to all
+chunks using the backbone LLM, producing 4,831 atomic claims in total.
+Table~\ref{tab:corpus} summarises the per-domain statistics.
+
+\begin{table}[t]
+\centering\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Domain} & \textbf{Papers} & \textbf{Chunks} & \textbf{Claims} \\
+\midrule
+Education        & 15 & 652  & 978  \\
+Biomedicine      & 15 & 638  & 956  \\
+Economics        & 15 & 611  & 921  \\
+Earth sciences   & 15 & 687  & 1,035 \\
+Nutrition sci.   & 15 & 659  & 941  \\
+\midrule
+\textbf{Total}   & \textbf{75} & \textbf{3,247} & \textbf{4,831} \\
+\bottomrule
+\end{tabular}
+\caption{Corpus statistics per domain.  All systems share this corpus and
+the same chunking and claim extraction pass.}
+\label{tab:corpus}
+\end{table}
+
+\subsection{EVIRAG-Bench}\label{sec:bench}
 
 Standard IR metrics reward topical relevance to a single answer.  \bench\ is
 designed instead to measure \emph{epistemic fidelity}.  It contains 250 queries
@@ -563,12 +667,38 @@ across five contested domains spanning stable, emerging, and polarized
 controversies in education, biomedicine, economics, earth sciences, and
 nutrition science.  Each domain contributes 50 queries built from 15 research
 papers (75 papers total; 3,247 text chunks and 4,831 atomic claims).
-Each query is annotated with
-(i)~ground-truth viewpoints and provenance, (ii)~contradictory claim pairs with
-CDA-7 labels, and (iii)~a controversy class drawn from the four-way typology
-(\S\ref{sec:taxonomy}).  Of the 250 queries, 38 are classified as
-\textbf{Resolved}, 67 as \textbf{Emerging}, 89 as \textbf{Stable}, and 56 as
-\textbf{Polarized}.  Gold annotations were finalized \emph{before} any system
+Each query carries four annotation layers summarised in
+Table~\ref{tab:annotation}.  Of the 250 queries, 38 are classified as
+\textbf{Resolved}, 67 as \textbf{Emerging}, 89 as \textbf{Stable}, and 56
+as \textbf{Polarized}.
+
+\begin{table}[t]
+\centering\small
+\setlength{\tabcolsep}{3pt}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lp{3.2cm}p{2.1cm}@{}}
+\toprule
+\textbf{Annotation layer} & \textbf{Content} & \textbf{Cardinality} \\
+\midrule
+Ground-truth viewpoints &
+  Distinct epistemic positions with provenance & 2--4 per query \\
+Contradiction pairs &
+  Explicit atomic claim pairs with conflict label & 1--8 per query \\
+CDA-7 labels &
+  Causal disagreement type per contradicting pair & 1 per pair \\
+Controversy class &
+  Resolved / Emerging / Stable / Polarized & 1 per query \\
+Human rating &
+  Epistemic completeness 1--5 (50-query subset) & 3 annotators \\
+\bottomrule
+\end{tabular}}%
+\caption{Per-query annotation structure in \bench.  Annotations were
+finalized and version-locked before any system was run, preventing
+coupling between evaluation outcomes and annotation choices.}
+\label{tab:annotation}
+\end{table}
+
+Gold annotations were finalized \emph{before} any system
 outputs were generated: viewpoint structure, contradiction pairs, and
 controversy classes were locked in a versioned annotation file, and all
 evaluated systems were run against this fixed file without further modification.
@@ -614,25 +744,9 @@ query---remain the higher-priority failure mode and motivate the Skeptic agent
 design.
 
 \paragraph{Metrics.}
-We report:
-\begin{itemize}[leftmargin=*,nosep]
-  \item \textbf{ContradictionRecall (CR)}: fraction of annotated contradictory
-    claim pairs recovered.
-  \item \textbf{ViewpointCoverage (VC)}: fraction of annotated viewpoints
-    surfaced, measured by keyword overlap (VC$_\text{kw}$) and dense-encoder
-    similarity (VC$_\text{emb}$; \texttt{all-MiniLM-L6-v2}, $\theta{=}0.65$).
-  \item \textbf{CCS} (Consensus Collapse Score, Eq.~\ref{eq:ccs}): angular
-    asymmetry between the dominant view centroid and the mean viewpoint
-    centroid; higher CCS indicates that the response over-represents one
-    viewpoint relative to the full evidence distribution.
-  \item \textbf{CCE} (Confidence Calibration Error): mean absolute deviation
-    between the system's emitted confidence tier and the gold controversy
-    class label (Resolved/Emerging/Stable/Polarized); lower values indicate
-    better-calibrated uncertainty signals.
-  \item \textbf{FaithfulnessScore (FS)}: claim-level faithfulness of each view
-    to its cited evidence, following FActScore-style NLI verification
-    \citep{min2023factscore}.
-\end{itemize}
+We report CR, VC$_\text{kw}$, VC$_\text{emb}$, CCS~(Eq.~\ref{eq:ccs}),
+CCE, and FS; formal definitions and source citations for each appear in
+\S\ref{sec:metrics}.
 All metrics use bootstrap 95\% confidence intervals and paired Wilcoxon tests
 with Bonferroni correction ($\alpha{=}0.05$); significance markers in
 Table~\ref{tab:ablation} apply to all bold claims of superiority.
@@ -649,40 +763,48 @@ not primarily a metric artifact.  Readers should nonetheless interpret
 VC$_\text{emb}$ in conjunction with VC$_\text{kw}$ and human ratings rather
 than in isolation.
 
-\subsection{Baselines and Ablation Design}
+\subsection{Baselines}
 \label{sec:baselines}
 
-We compare five internal configurations and three external baselines.  The
-internal ladder isolates the effect of adversarial retrieval, graph reasoning,
-and multi-view output; the external baselines are MADAM-RAG
+We compare against three external baselines: MADAM-RAG
 \citep{wang2025conflicting}, PaperQA2 \citep{lala2023paperqa}, and MMR-RAG
-\citep{carbonell1998mmr}.  All systems use the same backbone model and corpus.
-Single-query baselines use top-$k{=}10$ retrieval, while \system\ uses a
-multi-agent candidate pool of up to 15 retrieved chunks
-(3+5+4+3 across Precision/Recall/Skeptic/Counterfactual).  We therefore do not
-claim strict retrieval-budget equality.  Instead, we include both MMR-RAG and
-\system-NoGraph to separate the effect of broader evidence acquisition from the
-effect of claim-graph reasoning and multi-view synthesis.  Prompt templates are
-fixed across domains rather than tuned per domain, and full prompt and budget
-details are provided in Appendix \ref{app:baselines}.
+\citep{carbonell1998mmr}.  All systems share the same backbone model and
+corpus.  Full implementation details and prompt templates appear in
+Appendix~\ref{app:baselines}.
 
 \begin{enumerate}[leftmargin=*,nosep,label=\arabic{enumi}.]
   \item \textbf{Vanilla RAG}: Dense retrieval + single-view synthesis.
-  \item \textbf{Single-agent}: One Precision agent only.
-  \item \textbf{\system-NoGraph}: Adversarial retrieval without graph
-    reasoning.
-  \item \textbf{\system-NoMultiView}: Graph reasoning but collapsed final
-    output.
-  \item \textbf{\system\ Full}: Complete seven-stage pipeline.
+  \item \textbf{Single-agent}: One Precision agent only (single-view).
   \item \textbf{MADAM-RAG} \citep{wang2025conflicting}: Multi-agent
-    debate-based conflict resolution.
-  \item \textbf{PaperQA2} \citep{lala2023paperqa}: State-of-the-art
-    citation-grounded scientific QA.
-  \item \textbf{MMR-RAG}: Maximal Marginal Relevance
-    retrieval with single-view synthesis.
+    debate-based conflict resolution to a single answer.
+  \item \textbf{PaperQA2} \citep{lala2023paperqa}: Citation-grounded
+    scientific QA with two-stage retrieval.
+  \item \textbf{MMR-RAG} \citep{carbonell1998mmr}: Maximal Marginal
+    Relevance retrieval with single-view synthesis.
 \end{enumerate}
 
-\subsection{Main Results}
+\subsection{Ablation Design}
+\label{sec:ablation}
+
+The internal ablation ladder isolates the contribution of each \system\
+component by progressively removing stages:
+
+\begin{enumerate}[leftmargin=*,nosep,label=\arabic{enumi}.]
+  \item \textbf{\system-NoGraph}: Adversarial retrieval (Stage~2) without
+    claim-graph reasoning (Stage~3).  Isolates the effect of graph-based
+    contradiction structure.
+  \item \textbf{\system-NoMultiView}: Full claim graph retained but final
+    output collapsed to one answer.  Isolates the effect of multi-view
+    synthesis (Stage~6).
+  \item \textbf{\system\ Full}: Complete seven-stage pipeline (Algorithm~\ref{alg:evirag}).
+\end{enumerate}
+Single-query baselines use top-$k{=}10$ retrieval; \system\ uses a
+multi-agent pool of up to 15 chunks (3+5+4+3 across agents).  We therefore
+do not claim strict retrieval-budget equality, and include both MMR-RAG and
+\system-NoGraph as controls that separate broader evidence acquisition from
+graph reasoning and multi-view synthesis.
+
+\subsection{Experimental Results}
 \label{sec:main-results}
 
 Table~\ref{tab:ablation} reports results over all 250 queries.  \system\ Full
