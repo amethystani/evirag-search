@@ -93,60 +93,109 @@ compresses the evidence to one paragraph.
 \begin{figure}[t]
 \centering
 \resizebox{\columnwidth}{!}{%
-\begin{tikzpicture}[
-  %% ── Shared styles ──
-  ibox/.style={rectangle, draw=orange!80, fill=orange!10, line width=0.9pt,
-    text width=2.95cm, align=center, font=\small,
-    minimum height=1.05cm, inner sep=5pt, rounded corners=4pt},
-  evbox/.style={rectangle, draw=blue!65, fill=blue!8, line width=0.9pt,
-    text width=2.95cm, align=center, font=\small,
-    minimum height=1.05cm, inner sep=5pt, rounded corners=4pt},
-  mbox/.style={rectangle, draw=black!55, fill=gray!7, line width=1.0pt,
-    text width=1.15cm, align=center, font=\small\bfseries,
-    minimum height=3.0cm, rounded corners=5pt},
-  obox/.style={rectangle, line width=0.8pt, text width=3.05cm,
-    align=left, font=\small, inner sep=5pt, rounded corners=4pt,
-    minimum height=1.0cm},
-  ecllbl/.style={rectangle, fill=yellow!70, draw=orange!50, line width=0.8pt,
-    rounded corners=4pt, font=\small\bfseries, inner sep=5pt},
-  rowlbl/.style={font=\small\bfseries},
-  arr/.style={->, line width=0.9pt, >=stealth},
-]
+\begin{tikzpicture}
+%% ── Styles ──────────────────────────────────────────────────────────
+\tikzset{
+  stepbox/.style={rectangle, rounded corners=3pt,
+    draw=gray!38, fill=white, line width=0.6pt,
+    text width=3.25cm, align=center,
+    font=\scriptsize, inner sep=4pt, minimum height=0.68cm},
+  ragout/.style={rectangle, rounded corners=4pt, dashed,
+    draw=red!55, fill=red!5, line width=0.75pt,
+    text width=3.25cm, align=left,
+    font=\scriptsize, inner sep=5pt},
+  evout/.style={rectangle, rounded corners=4pt, dashed,
+    draw=teal!65, fill=teal!5, line width=0.75pt,
+    text width=3.55cm, align=left,
+    font=\scriptsize, inner sep=5pt},
+  sarr/.style={->, line width=0.65pt, >=stealth, color=gray!55},
+  marr/.style={->, line width=0.85pt, >=stealth, color=black!70},
+}
 
-%% ══ Row 1: Standard RAG (top) ══
-\node[rowlbl, orange!85!black] at (0, 2.30) {Standard RAG};
-\node[ibox] (in1) at (0, 1.45)
-  {``Does homework improve academic achievement?''};
-\node[obox, dashed, draw=red!65] (out1) at (6.85, 1.45)
+%% ══════════════════════════════════════════════════════════════════
+%% LEFT PANEL — Standard RAG
+%% ══════════════════════════════════════════════════════════════════
+%% Panel background
+\fill[orange!7, rounded corners=6pt]
+  (0.00, 0.20) rectangle (4.30, 5.10);
+%% Header bar (clipped so top corners match the panel's rounding)
+\begin{scope}
+  \clip[rounded corners=6pt] (0.00, 0.20) rectangle (4.30, 5.10);
+  \fill[orange!75!red!85] (0.00, 4.45) rectangle (4.30, 5.10);
+\end{scope}
+\draw[orange!32, rounded corners=6pt, line width=0.65pt]
+  (0.00, 0.20) rectangle (4.30, 5.10);
+\node[font=\small\bfseries, white] at (2.15, 4.78)
+  {Standard RAG};
+
+%% Process steps
+\node[stepbox] (ls1) at (2.15, 3.95)
+  {Dense retrieval\\(top-$k$, single pass)};
+\node[stepbox] (ls2) at (2.15, 3.10)
+  {LLM synthesis\\(single-view answer)};
+
+%% Output
+\node[ragout] (lout) at (2.15, 1.62)
   {``Homework improves performance, with stronger effects for older
-   students.''\;\textcolor{red!80!black}{$\boldsymbol{\times}$}};
+   students.''\\[4pt]
+   \hfill\textcolor{red!75!black}{\small\textbf{Epistemic collapse}%
+   \;$\boldsymbol{\times}$}};
 
-%% ══ Shared model ══
-\node[mbox] (rag) at (3.42, 0) {RAG\\Model};
+%% Connecting arrows
+\draw[sarr] (ls1) -- (ls2);
+\draw[sarr] (ls2) -- (lout.north);
 
-%% ══ Row 2: EVIRAG (bottom) ══
-\node[evbox] (in2) at (0, -1.45)
-  {``Does homework improve academic achievement?''
-   {\footnotesize\textit{\,+\,4 adversarial\\[-1pt]agents}}};
-\node[rowlbl, blue!70] at (0, -2.35) {\system};
-\node[obox, dashed, draw=teal!70] (out2) at (6.85, -1.45)
-  {{\scriptsize\textbf{View 1} \textit{[6\,src]}:} Grade 7--12 gain
-   ($d{\approx}0.30$)\\[3pt]
-   {\scriptsize\textbf{View 2} \textit{[3\,src]}:} No effect after SES
-   controls\\[3pt]
-   {\scriptsize\textbf{View 3} \textit{[2\,src]}:} Harms wellbeing
-   \;\textcolor{teal!70!black}{$\boldsymbol{\checkmark}$}};
+%% ══════════════════════════════════════════════════════════════════
+%% RIGHT PANEL — EVIRAG
+%% ══════════════════════════════════════════════════════════════════
+%% Panel background
+\fill[blue!6, rounded corners=6pt]
+  (5.10, 0.20) rectangle (9.40, 5.10);
+%% Header bar (clipped)
+\begin{scope}
+  \clip[rounded corners=6pt] (5.10, 0.20) rectangle (9.40, 5.10);
+  \fill[blue!68] (5.10, 4.45) rectangle (9.40, 5.10);
+\end{scope}
+\draw[blue!28, rounded corners=6pt, line width=0.65pt]
+  (5.10, 0.20) rectangle (9.40, 5.10);
+\node[font=\small\bfseries, white] at (7.25, 4.78)
+  {\system};
 
-%% ══ "Epistemic Collapse" centred between outputs ══
-\node[ecllbl] (ecl) at (6.85, 0) {Epistemic Collapse};
-\draw[dotted, line width=0.8pt] (out1.south) -- (ecl.north);
-\draw[dotted, line width=0.8pt] (ecl.south) -- (out2.north);
+%% Process steps
+\node[stepbox] (rs1) at (7.25, 3.95)
+  {4 adversarial agents\\(diverse retrieval)};
+\node[stepbox] (rs2) at (7.25, 3.10)
+  {Claim graph + NLI\\(disagreement struct.)};
+\node[stepbox] (rs3) at (7.25, 2.42)
+  {Multi-view synthesis};
 
-%% ══ Arrows — all horizontal (RAG box spans both row y-values) ══
-\draw[arr] (in1.east)  -- ++(0.4,0) |- (rag.north west);
-\draw[arr] (in2.east)  -- ++(0.4,0) |- (rag.south west);
-\draw[arr] (rag.north east) -- ++(0.4,0) |- (out1.west);
-\draw[arr] (rag.south east) -- ++(0.4,0) |- (out2.west);
+%% Output
+\node[evout] (rout) at (7.25, 1.18)
+  {\textbf{View 1}~\textit{[6\,src]:}~Gr.~7--12 gain ($d{\approx}0.30$)%
+   \\[2pt]
+   \textbf{View 2}~\textit{[3\,src]:}~No effect after SES controls%
+   \\[2pt]
+   \textbf{View 3}~\textit{[2\,src]:}~Harms wellbeing%
+   ~\textcolor{teal!68!black}{$\boldsymbol{\checkmark}$}};
+
+%% Connecting arrows
+\draw[sarr] (rs1) -- (rs2);
+\draw[sarr] (rs2) -- (rs3);
+\draw[sarr] (rs3) -- (rout.north);
+
+%% ══════════════════════════════════════════════════════════════════
+%% SHARED QUERY BOX (top, spans both panels)
+%% ══════════════════════════════════════════════════════════════════
+\node[rectangle, rounded corners=5pt,
+  draw=gray!48, fill=gray!4, line width=0.85pt,
+  text width=8.2cm, align=center,
+  font=\small\bfseries, inner sep=7pt] (q) at (4.70, 6.28)
+  {``Does homework improve academic achievement?''};
+
+%% Fork arrows: query → each panel header
+\draw[marr] (q.south) -- ++(0,-0.32) -| (2.15, 5.10);
+\draw[marr] (q.south) -- ++(0,-0.32) -| (7.25, 5.10);
+
 \end{tikzpicture}}%
 \caption{Epistemic collapse illustrated. Standard RAG compresses
 contested evidence into one fluent but incomplete answer.
