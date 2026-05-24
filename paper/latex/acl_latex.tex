@@ -95,84 +95,94 @@ Improving retrieval recall alone does not solve the problem if synthesis still
 compresses the evidence to one paragraph.
 
 \begin{figure}[t]
+\nolinenumbers
 \centering
 \resizebox{\columnwidth}{!}{%
 \begin{tikzpicture}[>=stealth]
 \tikzset{
-  qbox/.style={rectangle, rounded corners=5pt,
-    draw=black!48, fill=gray!7, text width=7.5cm,
-    align=center, font=\normalsize, inner sep=8pt},
-  hdr/.style={rectangle, rounded corners=3pt,
-    minimum width=3.3cm, minimum height=0.65cm,
-    align=center, font=\small\bfseries, inner sep=5pt},
-  stdbox/.style={rectangle, rounded corners=4pt,
-    draw=orange!68!red, fill=orange!8, text width=3.0cm,
-    align=left, font=\small, inner sep=8pt},
-  evbox/.style={rectangle, rounded corners=4pt,
-    draw=blue!58, fill=blue!7, text width=3.2cm,
-    align=left, font=\small, inner sep=8pt},
-  sarr/.style={->, line width=1.3pt, color=orange!82!red, >=stealth},
-  earr/.style={->, line width=1.3pt, color=blue!68, >=stealth},
+  qbox/.style={rectangle, rounded corners=6pt,
+    draw=black!40, fill=gray!8, text width=7.8cm,
+    align=center, font=\normalsize, inner sep=10pt, line width=0.9pt},
+  hdr/.style={rectangle, rounded corners=4pt,
+    minimum width=3.45cm, minimum height=0.74cm,
+    align=center, font=\small\bfseries, inner sep=6pt, line width=1.0pt},
+  stdbox/.style={rectangle, rounded corners=5pt,
+    draw=orange!68!red, fill=orange!9, text width=3.1cm,
+    align=left, font=\small, inner sep=10pt, line width=1.0pt},
+  evbox/.style={rectangle, rounded corners=5pt,
+    draw=blue!55, fill=blue!8, text width=3.3cm,
+    align=left, font=\small, inner sep=10pt, line width=1.0pt},
+  sarr/.style={->, line width=1.5pt, color=orange!82!red, >=stealth},
+  earr/.style={->, line width=1.5pt, color=blue!65, >=stealth},
+  stem/.style={line width=0.9pt, color=black!28},
 }
 
-%%── Shared query box ─────────────────────────────────────────────────────────
-\node[qbox] (q) at (4.0, 6.5) {%
-  \textbf{Query:}\enspace
-  ``Does homework improve academic achievement?''};
+%%── Query box ────────────────────────────────────────────────────────────────
+\node[qbox] (q) at (4.15, 7.7) {%
+  \textbf{Scientific query:}\enspace
+  ``Does homework improve\\[2pt]academic achievement?''};
+
+%%── Y-fork stem (neutral gray line from query bottom) ───────────────────────
+\coordinate (fork) at (4.15, 6.72);
+\draw[stem] (q.south) -- (fork);
 
 %%── Column headers ───────────────────────────────────────────────────────────
-\node[hdr, draw=orange!68!red, fill=orange!15, text=orange!82!red]
-  (stdh) at (2.0, 5.35) {$r^\mathrm{std}$:\;Standard RAG};
-\node[hdr, draw=blue!58, fill=blue!12, text=blue!72]
-  (evh)  at (6.3, 5.35) {$r^\mathrm{ev}$:\;\textsc{EVIRAG}};
+\node[hdr, draw=orange!68!red, fill=orange!16, text=orange!83!red]
+  (stdh) at (2.05, 5.75) {$r^\mathrm{std}$:\;Standard RAG};
+\node[hdr, draw=blue!55, fill=blue!14, text=blue!72]
+  (evh)  at (6.45, 5.75) {$r^\mathrm{ev}$:\;\textsc{EVIRAG}};
 
-%%── Query → header arrows ────────────────────────────────────────────────────
-\draw[sarr] (q.south) -- ++(0,-0.15) -| (stdh.north);
-\draw[earr] (q.south) -- ++(0,-0.15) -| (evh.north);
-
-%%── Standard RAG output box ──────────────────────────────────────────────────
-\node[stdbox, below=0.35cm of stdh] (stdbox) {%
-  ``Homework \emph{consistently} improves
-  performance, stronger for
-  grades~7--12.''\\[6pt]
-  \rule{2.6cm}{0.3pt}\\[5pt]
-  {\scriptsize
-  \textcolor{red!62!black}{$\boldsymbol\times$\enspace
-  2 of 3 viewpoints erased}\\[2pt]
-  VC$_\text{emb}$\,=\,0.33\enspace|\enspace CCS\,=\,0.38}};
-
-%%── EVIRAG output box ────────────────────────────────────────────────────────
-\node[evbox, below=0.35cm of evh] (evbox) {%
-  \textbf{V1}\enspace\textit{[dominant, 6 src]}\\[1pt]
-  {\scriptsize Grade 7--12 gain ($d\!\approx\!0.30$)\\
-  \textit{CDA-7: methodological}}\\[5pt]
-  \textbf{V2}\enspace\textit{[alt., 3 src]}\\[1pt]
-  {\scriptsize No effect controlling for SES\\
-  \textit{CDA-7: statistical}}\\[5pt]
-  \textbf{V3}\enspace\textit{[minority, 2 src]}\\[1pt]
-  {\scriptsize Wellbeing harm, no acad.\ gain\\
-  \textit{CDA-7: operational, conf.\ low}}\\[6pt]
-  \rule{2.8cm}{0.3pt}\\[5pt]
-  {\scriptsize
-  \textcolor{blue!72}{$\checkmark$\enspace
-  All 3 viewpoints surfaced}\\[2pt]
-  VC$_\text{emb}$\,=\,1.00\enspace|\enspace CCS\,=\,0.52}};
+%%── Fork → headers (Y-branch arrows) ────────────────────────────────────────
+\draw[sarr] (fork) -| (stdh.north);
+\draw[earr] (fork) -| (evh.north);
 
 %%── Header → box arrows ──────────────────────────────────────────────────────
-\draw[sarr] (stdh.south) -- (stdbox.north);
-\draw[earr] (evh.south)  -- (evbox.north);
+\draw[sarr] (stdh.south) -- ++(0,-0.32);
+\draw[earr] (evh.south)  -- ++(0,-0.32);
 
-%%── Vertical divider ─────────────────────────────────────────────────────────
-\draw[gray!30, densely dashed, line width=0.6pt] (4.15, 5.8) -- (4.15, -0.5);
+%%── Standard RAG output ──────────────────────────────────────────────────────
+\node[stdbox, below=0.32cm of stdh] (stdbox) {%
+  \emph{``Homework consistently\\
+  improves performance,\\
+  stronger for grades 7--12.''}\\[8pt]
+  \rule{2.7cm}{0.35pt}\\[6pt]
+  {\scriptsize
+    \textcolor{red!65!black}{$\boldsymbol{\times}$\enspace
+    2\,/\,3 viewpoints erased}\\[4pt]
+    VC$_{\text{emb}}$\;=\;0.33\quad
+    CCS\;=\;0.38}};
+
+%%── EVIRAG output ────────────────────────────────────────────────────────────
+\node[evbox, below=0.32cm of evh] (evbox) {%
+  \textbf{V1}\enspace\textit{[dominant,\;6\,src]}\\[2pt]
+  {\scriptsize Grade 7--12 gain ($d\!\approx\!0.30$)\\
+    CDA-7:\;\textit{methodological}}\\[7pt]
+  \textbf{V2}\enspace\textit{[alternative,\;3\,src]}\\[2pt]
+  {\scriptsize No effect after SES control\\
+    CDA-7:\;\textit{statistical}}\\[7pt]
+  \textbf{V3}\enspace\textit{[minority,\;2\,src]}\\[2pt]
+  {\scriptsize Wellbeing harm, no academic gain\\
+    CDA-7:\;\textit{operational\;/\;conf.\;low}}\\[8pt]
+  \rule{2.95cm}{0.35pt}\\[6pt]
+  {\scriptsize
+    \textcolor{blue!70}{$\checkmark$\enspace
+    All 3 viewpoints surfaced}\\[4pt]
+    VC$_{\text{emb}}$\;=\;1.00\quad
+    CCS\;=\;0.52}};
+
+%%── Vertical column divider ──────────────────────────────────────────────────
+\draw[gray!28, densely dashed, line width=0.7pt]
+  (4.25, 6.20) -- (4.25, -0.7);
 
 \end{tikzpicture}}%
-\caption{Epistemic collapse vs.\ disagreement-aware generation on a contested
-query.
-$r^\mathrm{std}$ (Standard RAG): returns one fluent answer, erasing minority
-viewpoints and suppressing scientific disagreement.
-$r^\mathrm{ev}$ (\system): surfaces three distinct viewpoints with source
-counts, CDA-7 causal attribution, and evidence-structured confidence.
-VC$_\text{emb}$ and CCS values are on the homework-effectiveness query.}
+\linenumbers
+\caption{Epistemic collapse vs.\ disagreement-aware generation.
+\textbf{Left} ($r^\mathrm{std}$): Standard RAG returns one fluent answer,
+erasing 2 of 3 viewpoints and suppressing the structure of scientific
+disagreement.
+\textbf{Right} ($r^\mathrm{ev}$): \system\ surfaces all three viewpoints with
+source counts, CDA-7 causal attribution, and evidence-structured confidence.
+Metric values are for the homework-effectiveness query.}
 \label{fig:collapse}
 \end{figure}
 
