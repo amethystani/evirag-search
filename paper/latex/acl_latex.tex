@@ -956,58 +956,29 @@ $+0.312$ to $+0.424$.
 \label{sec:error}
 
 Manual inspection of the 22 queries where \system\ Full achieved
-CR${<}0.5$ reveals four failure categories; the full distribution and a
-failure-mode table appear in Appendix~\ref{app:robustness}.
+CR${<}0.5$ reveals four failure categories (full analysis in
+Appendix~\ref{app:error}):
 
-\paragraph{NLI noise and false contradictions (41\% of low-CR cases).}
-Prompt-based NLI is the dominant source of error.
-NLI models trained on general-domain benchmarks inherit annotation
-artifacts---surface cues such as negation words and hedging phrases that
-spuriously predict \textsc{contradicts} without genuine inferential
-conflict~\citep{gururangan2018annotation}.  Scientific claims routinely
-contain domain-specific hedging (\textit{``may reduce,'' ``is associated with,''
-``in some populations''}) that triggers these artifacts.
-In addition, claims referring to the same outcome via different surface forms
-(e.g., \textit{``reduces LDL''} vs.\ \textit{``lowers cholesterol''}) may be
-mislabelled as contradictory rather than entailing, inflating graph density
-with spurious edges.  Stronger cross-encoder verifiers fine-tuned on scientific
-text are the most direct mitigation~\citep{wadden2020scifact}.
+\begin{itemize}[leftmargin=*,topsep=3pt,itemsep=2pt]
+  \item \textbf{NLI noise / false contradictions} (41\%): Prompt-based NLI
+    inherits general-domain annotation artifacts; hedging phrases and
+    lexical paraphrases (e.g., \textit{``reduces LDL''} vs.\
+    \textit{``lowers cholesterol''}) are spuriously labelled as contradictions~\citep{gururangan2018annotation}.
+  \item \textbf{Claim granularity mismatch} (32\%): Over-atomization loses
+    qualifying structure; hedging stripping produces over-broad claims that
+    NLI spuriously matches across distinct populations~\citep{min2024molecular}.
+  \item \textbf{Retrieval coverage gaps} (18\%): Vocabulary mismatch between
+    query and minority-view papers, compounded by structural publication
+    bias against null results~\citep{ru2024ragchecker}.
+  \item \textbf{CDA-7 attribution confusion} (9\%): Macro-F1$=0.68$
+    (Table~\ref{tab:cda7acc}); main confusions occur at the
+    Methodological/Population and Statistical/Methodological class
+    boundaries.
+\end{itemize}
 
-\paragraph{Claim granularity mismatch (32\% of cases).}
-Failures occur at the boundary between atomic and molecular
-claims~\citep{min2024molecular}.  Over-atomization---splitting a conditional
-claim such as \textit{``Homework improves achievement for grades 7--12 but not
-primary school''} into two fragments---loses the qualifying structure that
-determines whether the pieces genuinely contradict a retrieved passage.
-Conversely, insufficiently decomposed claims bundle multiple assertions into one
-unit, making NLI verification unreliable.  A related sub-failure is hedging
-stripping: LLM extractors omit qualifying phrases (\textit{``in elderly
-patients,'' ``under controlled conditions''}) during decomposition, producing
-over-broad claims that NLI spuriously matches across distinct populations.
-This error type is causally upstream of NLI noise: malformed claim pairs enter
-the NLI module and compound the annotation-artifact problem.
-
-\paragraph{Retrieval coverage gaps (18\% of cases).}
-Coverage failures arise from vocabulary mismatch---minority-view papers may
-use terminology that dense retrievers fail to bridge (e.g., \textit{``net
-employment effect''} vs.\ \textit{``job displacement''})---and from
-retrieval-generation misalignment, where the generation stage ignores
-minority-view passages even when they are retrieved~\citep{ru2024ragchecker}.
-A structural contributor is publication bias: null and negative results, which
-constitute the clearest evidence of scientific disagreement, are
-structurally underrepresented in academic corpora; the Skeptic agent cannot
-recover evidence that was never published or ingested.
-
-\paragraph{CDA-7 attribution boundary confusion (9\% of cases).}
-CDA-7 macro-F1$=0.68$ (Table~\ref{tab:cda7acc}) reflects systematic confusion at
-three class boundaries: \textbf{Methodological vs.\ Population} (sampling
-design that selects a different cohort is co-classifiable as either);
-\textbf{Statistical vs.\ Methodological} (different analysis protocols
-producing different effect-size interpretations); and \textbf{Temporal
-vs.\ Replication} (a null result from a later study is ambiguously either
-temporal supersession or replication failure).  Binary boundary classifiers
-trained on each pair, rather than a single seven-way prompt, would reduce
-these confusions.
+These errors suggest future gains are more likely from stronger
+verifiers and retrieval expansion than from replacing the
+disagreement-aware architecture.
 
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{Conclusion}
@@ -1498,5 +1469,63 @@ ground-truth viewpoints; \system\ Full provides structured multi-view output
 with per-view CDA-7 attribution and controversy-class labels.}
 \label{tab:qualitative2}
 \end{table*}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Error Analysis: Full Breakdown}
+\label{app:error}
+
+Manual inspection of the 22 queries where \system\ Full achieved
+CR${<}0.5$ reveals four failure categories; Table~\ref{tab:failuremodes}
+(Appendix~\ref{app:robustness}) summarises representative cases.
+
+\paragraph{NLI noise and false contradictions (41\% of low-CR cases).}
+Prompt-based NLI is the dominant source of error.
+NLI models trained on general-domain benchmarks inherit annotation
+artifacts---surface cues such as negation words and hedging phrases that
+spuriously predict \textsc{contradicts} without genuine inferential
+conflict~\citep{gururangan2018annotation}.  Scientific claims routinely
+contain domain-specific hedging (\textit{``may reduce,'' ``is associated with,''
+``in some populations''}) that triggers these artifacts.
+In addition, claims referring to the same outcome via different surface forms
+(e.g., \textit{``reduces LDL''} vs.\ \textit{``lowers cholesterol''}) may be
+mislabelled as contradictory rather than entailing, inflating graph density
+with spurious edges.  Stronger cross-encoder verifiers fine-tuned on scientific
+text are the most direct mitigation~\citep{wadden2020scifact}.
+
+\paragraph{Claim granularity mismatch (32\% of cases).}
+Failures occur at the boundary between atomic and molecular
+claims~\citep{min2024molecular}.  Over-atomization---splitting a conditional
+claim such as \textit{``Homework improves achievement for grades 7--12 but not
+primary school''} into two fragments---loses the qualifying structure that
+determines whether the pieces genuinely contradict a retrieved passage.
+Conversely, insufficiently decomposed claims bundle multiple assertions into one
+unit, making NLI verification unreliable.  A related sub-failure is hedging
+stripping: LLM extractors omit qualifying phrases (\textit{``in elderly
+patients,'' ``under controlled conditions''}) during decomposition, producing
+over-broad claims that NLI spuriously matches across distinct populations.
+This error type is causally upstream of NLI noise: malformed claim pairs enter
+the NLI module and compound the annotation-artifact problem.
+
+\paragraph{Retrieval coverage gaps (18\% of cases).}
+Coverage failures arise from vocabulary mismatch---minority-view papers may
+use terminology that dense retrievers fail to bridge (e.g., \textit{``net
+employment effect''} vs.\ \textit{``job displacement''})---and from
+retrieval-generation misalignment, where the generation stage ignores
+minority-view passages even when they are retrieved~\citep{ru2024ragchecker}.
+A structural contributor is publication bias: null and negative results, which
+constitute the clearest evidence of scientific disagreement, are
+structurally underrepresented in academic corpora; the Skeptic agent cannot
+recover evidence that was never published or ingested.
+
+\paragraph{CDA-7 attribution boundary confusion (9\% of cases).}
+CDA-7 macro-F1$=0.68$ (Table~\ref{tab:cda7acc}) reflects systematic confusion at
+three class boundaries: \textbf{Methodological vs.\ Population} (sampling
+design that selects a different cohort is co-classifiable as either);
+\textbf{Statistical vs.\ Methodological} (different analysis protocols
+producing different effect-size interpretations); and \textbf{Temporal
+vs.\ Replication} (a null result from a later study is ambiguously either
+temporal supersession or replication failure).  Binary boundary classifiers
+trained on each pair, rather than a single seven-way prompt, would reduce
+these confusions.
 
 \end{document}
