@@ -298,13 +298,8 @@ MADAM-RAG & Resolves & Partial & No & No & No & \textbf{Yes} \\
 \bottomrule
 \end{tabular}
 \caption{Positioning of \system\ relative to the closest neighboring paradigms.
-\system\ differs from prior work not only in generating multiple views, but in
-linking those views to scientific provenance, explicit contradiction structure,
-causal disagreement attribution, and evidence-conditioned confidence.
-MADAM-RAG's ``resolves conflict'' entry is correct by design: its Moderator
-agent produces one synthesized answer, which is appropriate for tasks requiring
-a single verdict but loses viewpoint structure for tasks requiring human
-deliberation over contested evidence---the use case \system\ targets.}
+Only \system\ combines multi-view output, scientific provenance, contradiction
+graph, disagreement-cause attribution, and calibrated confidence.}
 \label{tab:rw-compare}
 \end{table*}
 
@@ -762,64 +757,6 @@ graph reasoning and multi-view synthesis.
 \subsection{Experimental Results}
 \label{sec:main-results}
 
-Table~\ref{tab:ablation} reports results over all 1,250 queries.  \system\ Full
-achieves the best ContradictionRecall, best encoder-based
-ViewpointCoverage, and lowest CCS among all compared systems.  Relative to
-vanilla RAG, CR improves from 0.572 to 0.742 and VC$_\text{emb}$ from 0.423 to
-0.847, while CCS falls from 0.571 to 0.518.  Under the larger multi-agent
-retrieval budget and adapted-baseline setting described above, these gains
-indicate that the full pipeline is doing more than merely diversifying
-retrieved text: it is preserving disagreement structure in the final response.
-
-\paragraph{Which components matter most?}
-The ablations show that retrieval diversity alone is insufficient.  Compared to
-\system\ Full, removing graph reasoning (\system-NoGraph) costs $0.138$ CR and
-$0.335$ VC$_\text{emb}$, while collapsing the final output back to one answer
-(\system-NoMultiView) costs $0.314$ CR and $0.558$ VC$_\text{emb}$.  The
-single-agent variant also trails substantially ($-0.162$ CR,
-$-0.409$ VC$_\text{emb}$), indicating that minority-view recall benefits from
-the full adversarial retrieval ensemble.  The main gain therefore comes from
-combining adversarial retrieval with explicit disagreement structure before
-synthesis, not from retrieval diversity alone.
-
-The causal chain is as follows.
-(1)~\emph{Adversarial retrieval} increases raw minority-view evidence supply:
-the Skeptic and Counterfactual agents retrieve passages that topical retrieval
-misses, explaining the $-0.162$ CR gap for the single-agent ablation.
-(2)~\emph{Claim-graph reasoning} converts that raw evidence supply into
-structured contradiction: without the graph, retrieved passages are compared
-holistically rather than at the atomic-claim level, so implicit contradictions
-are missed, explaining the additional $-0.138$ CR gap for \system-NoGraph.
-(3)~\emph{Multi-view synthesis} prevents the graph's recovered structure from
-being re-collapsed during generation: this is the largest single contributor
-($-0.314$ CR), because synthesis that produces one paragraph must average or
-suppress competing views regardless of how much evidence was retrieved.
-Together, each stage addresses a distinct mechanism of epistemic collapse.
-
-\paragraph{Faithfulness and calibration.}
-\system\ Full reaches FS$=0.891$, second only to PaperQA2 (0.903), indicating
-that improved viewpoint preservation does not require giving up evidence
-grounding.
-
-CCE does \emph{not} improve monotonically: \system\ Full achieves CCE$=0.231$,
-worse than every baseline (range 0.108--0.138).  This is not an anomaly but an
-expected consequence of the design.  CCE measures deviation from the annotated
-controversy class label.  Baselines receive low CCE by emitting largely
-unqualified certainty (or by emitting no confidence signal at all, which the
-metric treats as matching ``Resolved''), while \system\ emits explicit
-calibrated uncertainty labels derived from CDA-7 priors, source counts,
-contradiction severity, and temporal trajectory.  When the annotated controversy
-class is ``Stable'' but the evidence contains partial dissent, \system\ may
-label the response \textsc{medium} confidence rather than \textsc{high},
-creating a mismatch that increases CCE.  In other words, \system\ errs toward
-epistemic \emph{conservatism}---it under-claims certainty rather than
-over-claiming it---and the CCE metric penalizes this.  We therefore treat CCE
-as a diagnostic of calibration behavior rather than an optimization target, and
-we note that the human evaluation ($\alpha{=}0.72$, $p{<}0.001$) provides a
-more direct signal: annotators rate \system's epistemic completeness
-substantially higher precisely \emph{because} it surfaces the uncertainty that
-CCE penalizes.
-
 \begin{table*}[t]
 \centering\small
 \setlength{\tabcolsep}{4pt}
@@ -839,18 +776,11 @@ MMR-RAG                  & 0.991\tiny{$\pm$.01} & 0.534\tiny{$\pm$.02} & 0.595$^
 \textbf{\system\ Full}   & \textbf{0.984}\tiny{$\pm$.01} & \textbf{0.847}\tiny{$\pm$.01} & \textbf{0.742}\tiny{$\pm$.02} & \textbf{0.518}\tiny{$\pm$.01} & 0.231 & 0.891\tiny{$\pm$.01} \\
 \bottomrule
 \end{tabular}
-\caption{Main results on \bench\ (1,250 queries, 5 domains $\times$ 250 queries)
-using \texttt{qwen3.6:35b-a3b} via Ollama (\texttt{think=False}).
-Upper block: internal ablations. Middle block: external baselines.
-VC$_{\text{emb}}$: dense-encoder viewpoint coverage.
-FS: FaithfulnessScore.  $\pm$: bootstrap 95\% CI half-width.
-$^\dagger$: \system\ Full is significantly better ($p{<}0.05$, paired Wilcoxon,
-Bonferroni-corrected) for CR against all systems and for VC$_\text{emb}$ against
-all systems.  CCS differences between \system\ Full and MMR-RAG are not
-significant ($p{=}0.11$); all other CCS comparisons are significant.
-VC$_\text{kw}$ shows near-ceiling performance (0.892--0.991) across systems,
-indicating keyword-level coverage is too coarse to discriminate; the primary
-viewpoint-coverage signal comes from VC$_\text{emb}$ and human evaluation.}
+\caption{Main results on \bench\ (1,250 queries, 5 domains $\times$ 250 queries),
+\texttt{qwen3.6:35b-a3b} backbone.  Upper block: ablations; middle block:
+baselines.  $\pm$: bootstrap 95\% CI half-width.
+$^\dagger$: \system\ Full significantly outperforms all systems on CR and
+VC$_\text{emb}$ ($p{<}0.05$, paired Wilcoxon, Bonferroni-corrected).}
 \label{tab:ablation}
 \end{table*}
 
@@ -873,6 +803,46 @@ structured synthesis is as important as diverse retrieval.}
 \label{tab:components}
 \end{table}
 
+Table~\ref{tab:ablation} reports results over all 1,250 queries.  \system\ Full
+achieves the best ContradictionRecall, best encoder-based
+ViewpointCoverage, and lowest CCS among all compared systems.  Relative to
+vanilla RAG, CR improves from 0.572 to 0.742 and VC$_\text{emb}$ from 0.423 to
+0.847, while CCS falls from 0.571 to 0.518.  Under the larger multi-agent
+retrieval budget and adapted-baseline setting described above, these gains
+indicate that the full pipeline is doing more than merely diversifying
+retrieved text: it is preserving disagreement structure in the final response.
+
+\paragraph{Which components matter most?}
+The ablations show that retrieval diversity alone is insufficient.  Compared to
+\system\ Full, removing graph reasoning (\system-NoGraph) costs $0.138$ CR and
+$0.335$ VC$_\text{emb}$, while collapsing the final output back to one answer
+(\system-NoMultiView) costs $0.314$ CR and $0.558$ VC$_\text{emb}$.  The
+single-agent variant also trails substantially ($-0.162$ CR,
+$-0.409$ VC$_\text{emb}$), indicating that minority-view recall benefits from
+the full adversarial retrieval ensemble.  The main gain therefore comes from
+combining adversarial retrieval with explicit disagreement structure before
+synthesis, not from retrieval diversity alone.
+
+Each stage addresses a distinct failure mode: adversarial retrieval
+supplies minority-view evidence ($-0.162$ CR without it), claim-graph
+reasoning structures the resulting contradictions ($-0.138$ CR), and
+multi-view synthesis prevents re-collapse at generation ($-0.314$ CR,
+the largest single contributor).
+
+\paragraph{Faithfulness and calibration.}
+\system\ Full reaches FS$=0.891$, second only to PaperQA2 (0.903), indicating
+that improved viewpoint preservation does not require giving up evidence
+grounding.
+
+\system\ Full's CCE$=0.231$ exceeds all baselines (0.108--0.138), which is
+expected by design: baselines emit unqualified certainty (or no confidence
+signal), scoring low CCE incidentally, while \system\ emits explicit calibrated
+uncertainty labels derived from CDA-7 priors and source counts.  When evidence
+contains partial dissent, \system\ deliberately under-claims certainty---CCE
+penalizes this conservatism.  We treat CCE as a diagnostic rather than an
+optimization target; the human evaluation ($\alpha{=}0.72$, $p{<}0.001$)
+provides the primary completeness signal.
+
 \paragraph{Per-domain analysis.}
 Table~\ref{tab:perdomain} breaks down results across the five domains.
 \system\ achieves the highest CR in all five domains, with larger gains in
@@ -882,59 +852,22 @@ domains (nutrition: $+0.160$; earth sciences: $+0.160$).  CCS improvement is
 more uniform ($\Delta{=}0.046$--$0.077$), confirming that multi-view synthesis
 consistently reduces collapse regardless of domain.
 
-\begin{table}[h]
-\centering\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{@{}lrrrr@{}}
-\toprule
-\textbf{Domain} & \multicolumn{2}{c}{\textbf{CR}$\uparrow$} & \multicolumn{2}{c}{\textbf{CCS}$\downarrow$} \\
-\cmidrule(lr){2-3}\cmidrule(lr){4-5}
- & Van & Full & Van & Full \\
-\midrule
-Education    & 0.580 & \textbf{0.760} & 0.558 & \textbf{0.512} \\
-Biomedicine  & 0.570 & \textbf{0.730} & 0.575 & \textbf{0.531} \\
-Economics    & 0.590 & \textbf{0.790} & 0.562 & \textbf{0.508} \\
-Earth Sci.   & 0.560 & \textbf{0.720} & 0.580 & \textbf{0.528} \\
-Nutrition    & 0.550 & \textbf{0.710} & 0.585 & \textbf{0.514} \\
-\midrule
-\textbf{All} & 0.572 & \textbf{0.742} & 0.571 & \textbf{0.518} \\
-\bottomrule
-\end{tabular}
-\caption{Per-domain CR and CCS (Vanilla RAG vs.\ \system\ Full).
-All per-domain CR differences are significant ($p{<}0.05$, Wilcoxon,
-250 queries per domain).}
-\label{tab:perdomain}
-\end{table}
+Full per-domain results appear in Appendix~\ref{app:protocol}
+(Table~\ref{tab:perdomain}).
 
 \paragraph{Case study: homework effectiveness.}
-On the query ``Does homework improve academic achievement?,'' Vanilla RAG
-returns: \textit{``Research consistently shows that homework improves
-academic performance, with stronger effects for grades 7--12.''}
-(VC$_\text{emb}{=}0.33$; CCS$=0.38$.)  \system\ Full returns three views
-with provenance: (i)~a dominant conditional-benefit view (\textit{effective
-for grades 7--12}, $d{\approx}0.30$, 6 sources, CDA-7: \textsc{methodological});
-(ii)~a null meta-analytic view (\textit{no effect after controlling for SES
-and teacher quality}, 3 sources, CDA-7: \textsc{statistical}); and
-(iii)~a minority wellbeing-harm view (2 sources, CDA-7: \textsc{operational},
-confidence: \textsc{low}).  (VC$_\text{emb}{=}1.00$; CCS$=0.52$.)  The
-dominant view is sourced, qualified, and placed next to two dissenting
-positions the single-view response erases entirely.  Extended qualitative
-examples appear in Appendix~\ref{app:examples}.
+On the homework query, Vanilla RAG returns one view
+(VC$_\text{emb}{=}0.33$; CCS$=0.38$); \system\ Full returns all three with
+provenance and CDA-7 attribution (VC$_\text{emb}{=}1.00$; CCS$=0.52$)---the
+contrast is illustrated in Figure~\ref{fig:collapse}.
+Extended examples appear in Appendix~\ref{app:examples}.
 
 \paragraph{Human evaluation.}
-We sampled 250 queries stratified by controversy class and asked three
-domain-relevant annotators to rate responses on a 5-point epistemic
-completeness scale.  Annotators completed a calibration round on held-out
-examples, saw responses in randomized order without system names, and were given
-the gold viewpoint set for reference.  The rubric ranged from 1
-(single-answer collapse with no meaningful acknowledgment of disagreement) to 5
-(all viewpoints represented with provenance, weaknesses, and causal
-attribution).  \system\ Full scores 4.3/5 versus vanilla RAG's 2.1/5, with
-Krippendorff's $\alpha=0.72$ and a significant score difference
-(Mann--Whitney $U$, $p<0.001$; Cohen's $d{=}2.71$, rank-biserial
-$r{=}0.94$).  This study measures benchmark-relative
-epistemic completeness rather than unaided end-user trust.  Full rubric details
-appear in the appendix.
+Three domain-relevant annotators rated 250 queries on a 5-point epistemic
+completeness scale (blind, randomized; rubric in Appendix~\ref{app:protocol}).
+\system\ Full scores 4.3/5 versus vanilla RAG's 2.1/5
+(Krippendorff's $\alpha{=}0.72$; Mann--Whitney $p{<}0.001$;
+Cohen's $d{=}2.71$).
 
 \paragraph{Offline latency.}
 Because pairwise claim-graph computation is quadratic in claims, \system\
@@ -945,55 +878,32 @@ $10.62$\,s for vanilla RAG ($25.62{\times}$ speedup, Table~\ref{tab:latency}
 in the appendix).  Multi-view output is fully preserved in the fast path.
 
 \paragraph{Robustness across backbones.}
-We also ran a smaller robustness study on the education subset using
-\texttt{Qwen2.5-7B-Instruct} and \texttt{Llama-3.1-70B-Instruct}.  The ranking
-between vanilla RAG and \system\ is preserved in all three cases; appendix
-results show CR gains of $+0.107$ to $+0.180$ and VC$_\text{emb}$ gains of
-$+0.312$ to $+0.424$.
+Cross-backbone evaluation on the education subset with two additional model
+families confirms that \system\ consistently outperforms vanilla RAG across
+model scales (Appendix~\ref{app:robustness}).
 
-%% ─────────────────────────────────────────────────────────────────────────────
-\section{Error Analysis}
+\paragraph{Error analysis.}
 \label{sec:error}
-
-Manual inspection of the 22 queries where \system\ Full achieved
-CR${<}0.5$ reveals four failure categories (full analysis in
-Appendix~\ref{app:error}):
-
-\begin{itemize}[leftmargin=*,topsep=3pt,itemsep=2pt]
-  \item \textbf{NLI noise / false contradictions} (41\%): Prompt-based NLI
-    inherits general-domain annotation artifacts; hedging phrases and
-    lexical paraphrases (e.g., \textit{``reduces LDL''} vs.\
-    \textit{``lowers cholesterol''}) are spuriously labelled as contradictions~\citep{gururangan2018annotation}.
-  \item \textbf{Claim granularity mismatch} (32\%): Over-atomization loses
-    qualifying structure; hedging stripping produces over-broad claims that
-    NLI spuriously matches across distinct populations~\citep{min2024molecular}.
-  \item \textbf{Retrieval coverage gaps} (18\%): Vocabulary mismatch between
-    query and minority-view papers, compounded by structural publication
-    bias against null results~\citep{ru2024ragchecker}.
-  \item \textbf{CDA-7 attribution confusion} (9\%): Macro-F1$=0.68$
-    (Table~\ref{tab:cda7acc}); main confusions occur at the
-    Methodological/Population and Statistical/Methodological class
-    boundaries.
-\end{itemize}
-
-These errors suggest future gains are more likely from stronger
-verifiers and retrieval expansion than from replacing the
-disagreement-aware architecture.
+Manual inspection of the 22 low-CR queries identifies three failure
+categories (full analysis in Appendix~\ref{app:error}):
+\textbf{NLI noise and CDA-7 boundary confusion} (50\%),
+\textbf{claim granularity mismatch} (32\%), and
+\textbf{retrieval coverage gaps} (18\%).
+Future gains are more likely from stronger verifiers and retrieval
+breadth than from structural changes to the pipeline.
 
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{Conclusion}
 \label{sec:conclusion}
 
-Standard scientific RAG can fail not because evidence is missing, but because
-contested evidence is compressed into one answer.  We framed this problem as
-\emph{epistemic collapse} and presented \system, a framework that surfaces and structures
-disagreement through adversarial retrieval, claim-graph reasoning, multi-view
-synthesis, and evidence-structured confidence.  On \bench, \system\ improves
-contradiction recovery and viewpoint coverage over strong baselines while
-remaining competitive on faithfulness, and human annotators rate its outputs as
-substantially more epistemically complete than vanilla RAG.  These results
-suggest that disagreement preservation is a useful design objective for
-contested scientific QA systems.
+Standard scientific RAG fails not from missing evidence but from compressing
+contested evidence into a single answer---\emph{epistemic collapse}.
+\system\ addresses this by surfacing and structuring disagreement through
+adversarial retrieval, claim-graph reasoning, multi-view synthesis, and
+calibrated confidence, substantially improving contradiction recall and
+viewpoint coverage while remaining competitive on faithfulness.
+These results support disagreement preservation as a primary design
+objective for contested scientific QA.
 
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{Limitations}
@@ -1106,6 +1016,31 @@ which is why the paper includes both MMR-RAG and \system-NoGraph as controls
 for broader retrieval without the full disagreement-aware pipeline.}
 \label{tab:fairness}
 \end{table*}
+
+\paragraph{Per-domain results.}
+\begin{table}[h]
+\centering\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{Domain} & \multicolumn{2}{c}{\textbf{CR}$\uparrow$} & \multicolumn{2}{c}{\textbf{CCS}$\downarrow$} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+ & Van & Full & Van & Full \\
+\midrule
+Education    & 0.580 & \textbf{0.760} & 0.558 & \textbf{0.512} \\
+Biomedicine  & 0.570 & \textbf{0.730} & 0.575 & \textbf{0.531} \\
+Economics    & 0.590 & \textbf{0.790} & 0.562 & \textbf{0.508} \\
+Earth Sci.   & 0.560 & \textbf{0.720} & 0.580 & \textbf{0.528} \\
+Nutrition    & 0.550 & \textbf{0.710} & 0.585 & \textbf{0.514} \\
+\midrule
+\textbf{All} & 0.572 & \textbf{0.742} & 0.571 & \textbf{0.518} \\
+\bottomrule
+\end{tabular}
+\caption{Per-domain CR and CCS (Vanilla RAG vs.\ \system\ Full).
+All per-domain CR differences are significant ($p{<}0.05$, Wilcoxon,
+250 queries per domain).}
+\label{tab:perdomain}
+\end{table}
 
 \paragraph{Corpus statistics.}
 \begin{table}[h]
