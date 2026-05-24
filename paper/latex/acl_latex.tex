@@ -997,6 +997,121 @@ results show CR gains of $+0.107$ to $+0.180$ and VC$_\text{emb}$ gains of
 $+0.312$ to $+0.424$.
 
 %% ─────────────────────────────────────────────────────────────────────────────
+\section{Error Analysis}
+\label{sec:error}
+
+We identify six failure categories through manual inspection of the 22 queries
+where \system\ Full achieved CR${<}0.5$, component-level diagnostics, and
+a review of documented failure modes in the NLI and RAG literature.  The
+observed failure distribution---NLI noise (9/22), claim-granularity mismatch
+(7/22), retrieval coverage gaps (4/22), and CDA-7 boundary confusion
+(2/22)---is presented in Table~\ref{tab:failuremodes} (Appendix~\ref{app:robustness});
+here we analyse the causal mechanisms behind each category and discuss three
+additional systemic risks not captured by per-query inspection.
+
+\paragraph{NLI noise and false contradictions.}
+Prompt-based NLI is the dominant failure source (41\% of CR${<}0.5$ cases).
+Two mechanisms are primarily responsible.
+First, NLI models trained on general-domain benchmarks inherit annotation
+artifacts---surface cues such as negation words and hedging phrases that
+spuriously predict \textsc{contradicts} without genuine inferential
+conflict~\citep{gururangan2018annotation}.  Scientific claims routinely
+contain domain-specific hedging (\textit{``may reduce,'' ``is associated
+with,'' ``in some populations''}) that triggers these artifacts.
+Second, claims that refer to the same biomarker or outcome via different
+surface forms (e.g., \textit{``reduces LDL''} vs.\ \textit{``lowers
+cholesterol''}) may be incorrectly labeled as contradictory rather than
+entailing.  Both mechanisms inflate graph density with spurious
+\textsc{contradicts} edges, polluting the disagreement structure that Louvain
+operates on.  Stronger cross-encoder verifiers fine-tuned on scientific text
+are the most direct mitigation.
+
+\paragraph{Claim granularity mismatch.}
+The second-largest failure mode (32\% of cases) occurs at the boundary
+between atomic and molecular claims~\citep{min2024molecular}.  Fully atomic
+extraction --- splitting a conditional claim such as \textit{``Homework
+improves achievement for grades 7--12 but not primary school''} into two
+fragments --- loses the qualifying structure that determines whether the
+extracted pieces genuinely contradict a retrieved passage.  Conversely,
+insufficiently decomposed claims bundle multiple assertions into one unit, making
+NLI verification unreliable because the entailment head must match the entire
+conjunction rather than a single proposition.  A related failure is hedging
+stripping: LLM extractors often omit qualifying phrases (\textit{``in elderly
+patients,'' ``under controlled conditions''}) during decomposition, producing
+over-broad claims that NLI spuriously matches across population-level
+differences.  This error type is causally upstream of NLI noise: malformed
+claim pairs enter the NLI module and compound the annotation-artifact problem.
+Extraction schemes that preserve conditional structure and population qualifiers
+would reduce both error categories simultaneously.
+
+\paragraph{Retrieval coverage gaps.}
+Coverage failures (18\% of cases) occur when the corpus lacks sufficient
+representation of a minority viewpoint.  Three sub-patterns arise: (i)
+\emph{vocabulary mismatch}, where minority-view papers use terminology that
+dense retrievers trained on general text fail to bridge to the query (e.g.,
+\textit{``net employment effect''} vs.\ \textit{``job displacement''});
+(ii)~\emph{retrieval-generation misalignment}, where the generation stage
+ignores minority-view passages even when they are retrieved, defaulting to
+dominant-view content~\citep{ru2024ragchecker}; and (iii)~\emph{corpus
+absence}, where the key contradicting paper was not ingested at all.  The
+Skeptic agent partially mitigates (i) and (ii) by explicitly querying for
+dissenting evidence, but it cannot compensate for (iii).  Retrieval augmented
+with query expansion and terminology substitution addresses (i); a
+faithfulness-aware generation step addresses (ii).
+
+\paragraph{CDA-7 attribution boundary confusion.}
+CDA-7 macro-F1$=0.68$ (Table~\ref{tab:cda7acc}) reflects systematic confusion at
+three class boundaries.  \textbf{Methodological vs.\ Population:} when a study's
+sampling design selects a different population (e.g., elderly vs.\ general adult
+cohort), the contradiction can be attributed to either class; the boundary between
+``different protocol'' and ``different population'' is genuine rather than
+annotation error.  \textbf{Statistical vs.\ Methodological:} different analysis
+protocols produce different effect-size interpretations, making the two classes
+co-extensive for many claim pairs.  \textbf{Temporal vs.\ Replication:} a 2022
+study failing to replicate a 2010 finding could be classified as either newer
+evidence superseding older claims or as a replication failure, depending on
+whether the 2022 study controlled for factors the 2010 study ignored.  A
+dedicated binary classifier for each boundary pair, rather than a single
+seven-way classification prompt, would reduce these confusions.
+
+\paragraph{Community detection artifacts.}
+Even when the claim graph $G$ is correctly constructed, Louvain modularity
+optimization introduces its own failure modes.  The \emph{resolution limit}
+means that small but genuine disagreement communities---where a single high-quality
+paper takes a distinct minority position---may be absorbed into a larger community
+if their internal edge density does not exceed the threshold set by overall graph
+modularity~\citep{fortunato2007resolution}.  On the scale of 60 claims from 15
+retrieved chunks, the resolution limit is encountered frequently: communities of
+2--3 claims are at the boundary of detectability.  A second artifact is
+\emph{order-dependent instability}: Louvain processes nodes in an arbitrary order,
+producing different partitions from the same graph; on noisy NLI-derived graphs
+small perturbations (one mislabeled edge) can cause qualitatively different
+view counts.  Finally, \emph{same-paper claim clustering} can create spurious
+communities: multiple claims extracted from the same paper are highly redundant
+and may form their own module even if they represent the dominant view, wasting a
+view slot.
+
+\paragraph{Systemic corpus and publication biases.}
+Three biases operate at the corpus level rather than the query level, and do not
+appear in per-query error counts but systematically distort disagreement
+representation.
+\emph{Publication bias:} the corpus is dominated by positive-result papers;
+null and negative results, which are precisely the evidence that constitutes
+genuine scientific disagreement, are structurally underrepresented.  Even
+the Skeptic agent cannot recover evidence that was never published or ingested.
+\emph{Citation-age recency bias:} retrieval agents tend to surface recently
+cited papers, which in scientific publishing means results from the past 5--7 years
+are over-represented relative to foundational older studies that may contain the
+clearest dissenting evidence.
+\emph{LLM citation popularity bias:} LLM-based retrieval agents implicitly
+favor high-citation papers, creating convergence across agents that partially
+defeats the adversarial retrieval design---all four agents may surface the same
+three high-impact papers on a topic despite having different epistemic objectives.
+Corpus curation strategies that explicitly sample under-cited and null-result
+papers are a practical mitigation; however, they require domain expert involvement
+that does not scale automatically.
+
+%% ─────────────────────────────────────────────────────────────────────────────
 \section{Limitations and Ethics}
 \label{sec:limits}
 
