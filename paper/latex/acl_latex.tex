@@ -133,30 +133,34 @@ compresses the evidence to one paragraph.
 };
 
 %%── Circle background (Evidence Hyperspace) ──────────────────────────────
-\fill[gray!11] (9.2, 0.1) circle (3.25);
-\draw[gray!36, line width=0.55pt] (9.2, 0.1) circle (3.25);
-\node[font=\small\itshape, text=blue!58] at (9.2, -3.75)
-  {Evidence Hyperspace};
+%% Slightly smaller circle moved left → gives space for v2 label before answer box
+\fill[gray!11] (8.8, 0.1) circle (3.1);
+\draw[gray!36, line width=0.55pt] (8.8, 0.1) circle (3.1);
+\node[font=\small\itshape, text=blue!58] at (10.0, -3.65)
+  {Evidence Hyperspace};  %% shifted right to clear v3 label
 
 %%── Graph nodes ──────────────────────────────────────────────────────────
-\node[qnode] (qn)  at (6.30, 0.15) {};   %% query entry (green)
-\node[lnode] (v1)  at (9.35, 3.05) {};   %% Grade 7-12 gain
-\node[lnode] (v2)  at (12.10, 0.40) {};  %% No SES effect
-\node[lnode] (v3)  at (8.10, -2.75) {};  %% Wellbeing harm
+\node[qnode] (qn)  at (6.05, 0.15) {};   %% query entry (green)
+\node[lnode] (v1)  at (8.95, 2.85) {};   %% Grade 7-12 gain (top)
+\node[lnode] (v2)  at (11.40, 0.40) {};  %% No SES effect (right, moved left)
+\node[lnode] (v3)  at (7.85, -2.65) {};  %% Wellbeing harm (bottom)
 
-%%── Slanted floating labels ──────────────────────────────────────────────
-\node[font=\small\bfseries, text=orange!80!red, rotate=30]
-  at (8.8, 3.80)  {Grade 7--12 gain ($d{\approx}0.30$)};
-\node[font=\small\bfseries, text=red!65!black, rotate=-8]
-  at (13.65, 1.05) {No effect (SES-adj.)};
-\node[font=\small\bfseries, text=teal!62!black, rotate=15]
-  at (7.35, -3.52) {Wellbeing harm};
+%%── Slanted floating labels — carefully positioned to avoid overlaps ─────
+%% v1 label: top, slanted up-right
+\node[font=\small\bfseries, text=orange!80!red, rotate=28]
+  at (8.35, 3.60)  {Grade 7--12 gain ($d{\approx}0.30$)};
+%% v2 label: moved ABOVE v2, short text, well left of answer box
+\node[font=\small\bfseries, text=red!65!black, rotate=10]
+  at (12.50, 1.70) {No SES effect};
+%% v3 label: bottom-left, clear of "Evidence Hyperspace" text
+\node[font=\small\bfseries, text=teal!62!black, rotate=18]
+  at (6.15, -3.45) {Wellbeing harm};
 \node[font=\footnotesize\bfseries, text=green!55!black, above=3pt of qn]
   {Query};
 
 %%── Edge labels inside circle ────────────────────────────────────────────
-\node[elab] at (10.45, 2.05) {Contradicts};
-\node[elab] at (10.85, -1.35) {Supersedes};
+\node[elab] at (10.00, 1.85) {Contradicts};
+\node[elab] at (10.35, -1.20) {Supersedes};
 
 %%── Standard RAG path (orange): query → V1 only ──────────────────────────
 \draw[epath] (qstd.east) to[bend right=10] (qn);
@@ -166,25 +170,25 @@ compresses the evidence to one paragraph.
 \draw[cpath] (qev.east)  to[bend left=10]  (qn);
 \draw[cpath] (qn)        to[bend left=8]   (v3);
 \draw[cpath] (v3)        to[bend right=15] (v2);
-\draw[cpath] (v2)        to[bend right=15] (v1);
+\draw[cpath] (v2)        to[bend right=18] (v1);
 
-%%── Answer box (right, yellow) ───────────────────────────────────────────
-\node[abox] (ans) at (16.9, 0.3) {%
+%%── Answer box — moved further right to clear node labels ────────────────
+\node[abox] (ans) at (17.6, 0.2) {%
   \textbf{\textcolor{orange!75!black}{$a_x$\;:\;Multi-View Answer}}\\[9pt]
   \textbf{View~1:}\;Grade~7--12 gain\;$\checkmark$\\[5pt]
   \textbf{View~2:}\;No~SES~effect\;$\checkmark$\\[5pt]
   \textbf{View~3:}\;Wellbeing~harm\;$\checkmark$%
 };
 
-%%── Arrow: v1 → answer box ───────────────────────────────────────────────
-\draw[apath] (v1.east) to[out=0, in=145] (ans.north west);
+%%── Arrow: v1 → answer box (gentle rightward arc) ────────────────────────
+\draw[apath] (v1.east) to[bend right=5] (ans.north west);
 
 %%── Bottom legend ────────────────────────────────────────────────────────
-\draw[epath, line width=1.3pt] (3.6, -5.15) -- (5.4, -5.15);
-\node[right, font=\small, text=gray!60] at (5.4, -5.15)
+\draw[epath, line width=1.3pt] (3.2, -5.10) -- (5.0, -5.10);
+\node[right, font=\small, text=gray!60] at (5.0, -5.10)
   {$r^\mathrm{std}$\;:\;Standard RAG\;(single-view collapse)};
-\draw[cpath, line width=1.3pt] (12.3, -5.15) -- (14.1, -5.15);
-\node[right, font=\small, text=gray!60] at (14.1, -5.15)
+\draw[cpath, line width=1.3pt] (12.5, -5.10) -- (14.3, -5.10);
+\node[right, font=\small, text=gray!60] at (14.3, -5.10)
   {$r^\mathrm{ev}$\;:\;\textsc{EVIRAG}\;(multi-view preservation)};
 
 \end{tikzpicture}}%
