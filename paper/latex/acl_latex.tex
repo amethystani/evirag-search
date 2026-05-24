@@ -51,7 +51,7 @@ response.  We present \system\ (Evidence-centric, Viewpoint-Inclusive RAG), a
 framework for scientific question answering that combines adversarial retrieval,
 claim-level disagreement graphs, causal disagreement attribution, multi-view
 synthesis, and evidence-structured confidence labels.  We also introduce
-\bench, a 250-query benchmark spanning five contested scientific domains.
+\bench, a 1,250-query benchmark spanning five contested scientific domains.
 Across eight compared systems, \system\ substantially outperforms vanilla RAG
 on ContradictionRecall and dense-encoder ViewpointCoverage while
 reducing Consensus Collapse Score.  Human evaluation with three annotators
@@ -94,112 +94,107 @@ output interface that preserves viewpoint structure, provenance, and uncertainty
 Improving retrieval recall alone does not solve the problem if synthesis still
 compresses the evidence to one paragraph.
 
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
-\resizebox{\textwidth}{!}{%
+\resizebox{\columnwidth}{!}{%
 \begin{tikzpicture}[>=stealth, font=\normalsize]
 %%── Styles ────────────────────────────────────────────────────────────────
 \tikzset{
-  qbox/.style={rectangle, rounded corners=7pt, line width=0.9pt,
-    text width=6.2cm, align=left, inner sep=12pt},
-  abox/.style={rectangle, rounded corners=8pt,
-    draw=orange!60!black, fill=yellow!22, line width=1.3pt,
-    text width=4.8cm, align=center, inner sep=13pt},
-  lnode/.style={circle, fill=black!82, minimum size=8pt, inner sep=0pt},
-  qnode/.style={circle, fill=green!62!black, minimum size=11pt, inner sep=0pt},
-  epath/.style={->, line width=1.4pt, color=orange!82!red, >=stealth,
-    dash pattern=on 7pt off 3.5pt},
-  cpath/.style={->, line width=1.4pt, color=blue!65, >=stealth,
-    dash pattern=on 7pt off 3.5pt},
-  apath/.style={->, line width=1.1pt, color=black!50, >=stealth,
-    dash pattern=on 5pt off 3pt},
-  elab/.style={fill=white, inner sep=2.5pt, font=\small, text=black!55},
+  qbox/.style={rectangle, rounded corners=5pt, line width=0.8pt,
+    text width=2.2cm, align=left, inner sep=7pt},
+  abox/.style={rectangle, rounded corners=6pt,
+    draw=orange!60!black, fill=yellow!22, line width=1.1pt,
+    text width=1.85cm, align=center, inner sep=9pt},
+  lnode/.style={circle, fill=black!82, minimum size=6pt, inner sep=0pt},
+  qnode/.style={circle, fill=green!62!black, minimum size=9pt, inner sep=0pt},
+  epath/.style={->, line width=1.2pt, color=orange!82!red, >=stealth,
+    dash pattern=on 6pt off 3pt},
+  cpath/.style={->, line width=1.2pt, color=blue!65, >=stealth,
+    dash pattern=on 6pt off 3pt},
+  apath/.style={->, line width=0.9pt, color=black!50, >=stealth,
+    dash pattern=on 4pt off 2pt},
+  elab/.style={fill=white, inner sep=1.5pt, font=\small, text=black!55},
 }
 
-%%── Left box: Standard RAG ────────────────────────────────────────────────
-\node[qbox, draw=orange!58!red, fill=orange!6] (qstd) at (0, 2.6) {%
-  \textbf{\textcolor{orange!82!red}{$r^\mathrm{std}$\;:\;Standard RAG}}\\[6pt]
-  ``Does homework improve\\[2pt]
-  \colorbox{orange!30}{\strut\textbf{academic achievement}}?''\\[6pt]
-  {\small\textcolor{gray!58}{$\hookrightarrow$ selects dominant view only}}%
+%%── Standard RAG query box ──────────────────────────────────────────────────
+\node[qbox, draw=orange!58!red, fill=orange!6] (qstd) at (0, 1.75) {%
+  \textbf{\textcolor{orange!82!red}{$r^\mathrm{std}$: Std.\ RAG}}\\[3pt]
+  \colorbox{orange!28}{\strut\small\textbf{homework?}}\\[3pt]
+  {\small\textcolor{gray!58}{$\hookrightarrow$ dominant view}}%
 };
 
-%%── Left box: EVIRAG ─────────────────────────────────────────────────────
-\node[qbox, draw=blue!50, fill=blue!5] (qev) at (0, -2.5) {%
-  \textbf{\textcolor{blue!65}{$r^\mathrm{ev}$\;:\;\textsc{EVIRAG}}}\\[6pt]
-  ``Does homework affect\\[2pt]
-  \colorbox{blue!18}{\strut\textbf{academic achievement}}?''\\[6pt]
-  {\small\textcolor{gray!58}{$\hookrightarrow$ preserves all conflicting views}}%
+%%── EVIRAG query box ─────────────────────────────────────────────────────────
+\node[qbox, draw=blue!50, fill=blue!5] (qev) at (0, -1.75) {%
+  \textbf{\textcolor{blue!65}{$r^\mathrm{ev}$: \textsc{EVIRAG}}}\\[3pt]
+  \colorbox{blue!16}{\strut\small\textbf{homework?}}\\[3pt]
+  {\small\textcolor{gray!58}{$\hookrightarrow$ all views}}%
 };
 
-%%── Circle background (Evidence Hyperspace) ──────────────────────────────
-%% Slightly smaller circle moved left → gives space for v2 label before answer box
-\fill[gray!11] (8.8, 0.1) circle (3.1);
-\draw[gray!36, line width=0.55pt] (8.8, 0.1) circle (3.1);
-\node[font=\small\itshape, text=blue!58] at (10.0, -3.65)
-  {Evidence Hyperspace};  %% shifted right to clear v3 label
+%%── Evidence Hyperspace circle ──────────────────────────────────────────────
+\fill[gray!11] (3.8, 0.05) circle (1.55);
+\draw[gray!36, line width=0.5pt] (3.8, 0.05) circle (1.55);
+\node[font=\small\itshape, text=blue!58] at (4.5, -1.74)
+  {Evidence Hyperspace};
 
-%%── Graph nodes ──────────────────────────────────────────────────────────
-\node[qnode] (qn)  at (6.05, 0.15) {};   %% query entry (green)
-\node[lnode] (v1)  at (8.95, 2.85) {};   %% Grade 7-12 gain (top)
-\node[lnode] (v2)  at (11.40, 0.40) {};  %% No SES effect (right, moved left)
-\node[lnode] (v3)  at (7.85, -2.65) {};  %% Wellbeing harm (bottom)
+%%── Claim graph nodes ────────────────────────────────────────────────────────
+\node[qnode] (qn) at (2.45, 0.05) {};   %% query entry (green)
+\node[lnode] (v1) at (3.80, 1.58)  {};  %% Grade 7-12 (top)
+\node[lnode] (v2) at (5.17, 0.22)  {};  %% No SES (right)
+\node[lnode] (v3) at (3.00, -1.44) {};  %% Wellbeing (bottom)
 
-%%── Slanted floating labels — carefully positioned to avoid overlaps ─────
-%% v1 label: top, slanted up-right
-\node[font=\small\bfseries, text=orange!80!red, rotate=28]
-  at (8.35, 3.60)  {Grade 7--12 gain ($d{\approx}0.30$)};
-%% v2 label: moved ABOVE v2, short text, well left of answer box
-\node[font=\small\bfseries, text=red!65!black, rotate=10]
-  at (12.50, 1.70) {No SES effect};
-%% v3 label: bottom-left, clear of "Evidence Hyperspace" text
-\node[font=\small\bfseries, text=teal!62!black, rotate=18]
-  at (6.15, -3.45) {Wellbeing harm};
-\node[font=\footnotesize\bfseries, text=green!55!black, above=3pt of qn]
+%%── Floating node labels ─────────────────────────────────────────────────────
+\node[font=\small\bfseries, text=orange!80!red, rotate=22]
+  at (3.15, 2.12)  {Grade 7--12 ($d{\approx}0.30$)};
+\node[font=\small\bfseries, text=red!65!black, rotate=8]
+  at (5.78, 0.98)  {No SES effect};
+\node[font=\small\bfseries, text=teal!62!black, rotate=15]
+  at (1.95, -1.88) {Wellbeing harm};
+\node[font=\footnotesize\bfseries, text=green!55!black, above=2pt of qn]
   {Query};
 
-%%── Edge labels inside circle ────────────────────────────────────────────
-\node[elab] at (10.00, 1.85) {Contradicts};
-\node[elab] at (10.35, -1.20) {Supersedes};
+%%── Claim-graph edge labels ──────────────────────────────────────────────────
+\node[elab] at (4.70, 1.10)  {Contradicts};
+\node[elab] at (4.65, -0.62) {Supersedes};
 
-%%── Standard RAG path (orange): query → V1 only ──────────────────────────
-\draw[epath] (qstd.east) to[bend right=10] (qn);
-\draw[epath] (qn)        to[bend right=8]  (v1);
+%%── Standard RAG path (orange dashed): query entry → V1 only ────────────────
+\draw[epath] (qstd.east) to[bend right=8] (qn);
+\draw[epath] (qn)        to[bend right=7] (v1);
 
-%%── EVIRAG path (blue): query → V3 → V2 → V1 ───────────────────────────
-\draw[cpath] (qev.east)  to[bend left=10]  (qn);
-\draw[cpath] (qn)        to[bend left=8]   (v3);
-\draw[cpath] (v3)        to[bend right=15] (v2);
-\draw[cpath] (v2)        to[bend right=18] (v1);
+%%── EVIRAG path (blue dashed): entry → V3 → V2 → V1 ────────────────────────
+\draw[cpath] (qev.east)  to[bend left=8]   (qn);
+\draw[cpath] (qn)        to[bend left=7]   (v3);
+\draw[cpath] (v3)        to[bend right=14] (v2);
+\draw[cpath] (v2)        to[bend right=16] (v1);
 
-%%── Answer box — moved further right to clear node labels ────────────────
-\node[abox] (ans) at (17.6, 0.2) {%
-  \textbf{\textcolor{orange!75!black}{$a_x$\;:\;Multi-View Answer}}\\[9pt]
-  \textbf{View~1:}\;Grade~7--12 gain\;$\checkmark$\\[5pt]
-  \textbf{View~2:}\;No~SES~effect\;$\checkmark$\\[5pt]
-  \textbf{View~3:}\;Wellbeing~harm\;$\checkmark$%
+%%── Multi-view answer box ────────────────────────────────────────────────────
+\node[abox] (ans) at (8.5, 0.10) {%
+  \textbf{\textcolor{orange!75!black}{$a_x$: Multi-View}}\\[5pt]
+  \textbf{V1:}\;Grade 7--12\;$\checkmark$\\[3pt]
+  \textbf{V2:}\;No SES\;$\checkmark$\\[3pt]
+  \textbf{V3:}\;Wellbeing\;$\checkmark$%
 };
 
-%%── Arrow: v1 → answer box (gentle rightward arc) ────────────────────────
+%%── V1 → answer box (gentle arc) ────────────────────────────────────────────
 \draw[apath] (v1.east) to[bend right=5] (ans.north west);
 
-%%── Bottom legend ────────────────────────────────────────────────────────
-\draw[epath, line width=1.3pt] (3.2, -5.10) -- (5.0, -5.10);
-\node[right, font=\small, text=gray!60] at (5.0, -5.10)
-  {$r^\mathrm{std}$\;:\;Standard RAG\;(single-view collapse)};
-\draw[cpath, line width=1.3pt] (12.5, -5.10) -- (14.3, -5.10);
-\node[right, font=\small, text=gray!60] at (14.3, -5.10)
-  {$r^\mathrm{ev}$\;:\;\textsc{EVIRAG}\;(multi-view preservation)};
+%%── Legend ───────────────────────────────────────────────────────────────────
+\draw[epath, line width=1.1pt] (0.5, -3.15) -- (1.5, -3.15);
+\node[right, font=\small, text=gray!60] at (1.5, -3.15)
+  {$r^\mathrm{std}$: Std.\ RAG\;(single-view collapse)};
+\draw[cpath, line width=1.1pt] (0.5, -3.65) -- (1.5, -3.65);
+\node[right, font=\small, text=gray!60] at (1.5, -3.65)
+  {$r^\mathrm{ev}$: \textsc{EVIRAG}\;(multi-view preservation)};
 
 \end{tikzpicture}}%
-\caption{The claim graph structure of the Evidence Hyperspace.
-$r^\mathrm{std}$: Standard RAG takes a dominant-view path, selecting only the
-most-supported claim community and collapsing all other views.
-$r^\mathrm{ev}$: \system\ traverses all claim communities---following
+\caption{Evidence Hyperspace claim-graph structure.
+$r^\mathrm{std}$ (orange): Standard RAG takes a dominant-view path,
+retrieving only the most-supported claim community and collapsing the
+remaining views.
+$r^\mathrm{ev}$ (blue): \system\ traverses all claim communities---following
 contradiction and supersession edges---and preserves each conflicting
-viewpoint through to the final multi-view output.}
+viewpoint through to the multi-view answer $a_x$.}
 \label{fig:collapse}
-\end{figure*}
+\end{figure}
 
 \paragraph{Approach.}
 \system\ is designed around that premise.  It uses adversarial retrieval to
@@ -220,7 +215,7 @@ controversy faithfully.
   \item We introduce CDA-7, a seven-class causal disagreement taxonomy, and a
     four-way controversy typology that calibrates confidence to the structure of
     the retrieved evidence.
-  \item We introduce \bench, a 250-query benchmark spanning five contested
+  \item We introduce \bench, a 1,250-query benchmark spanning five contested
     scientific domains, evaluated against ablations and external baselines with
     automatic metrics and human epistemic completeness ratings.
 \end{itemize}
@@ -618,31 +613,31 @@ Table~\ref{tab:latency}).
 \subsection{Dataset and Corpus Construction}
 \label{sec:corpus}
 
-The evaluation corpus comprises 75 peer-reviewed papers drawn from five
+The evaluation corpus comprises 989 peer-reviewed papers drawn from five
 contested scientific domains: education (homework effectiveness), biomedicine
 (statin primary prevention), economics (minimum-wage employment effects),
 earth sciences (climate feedback mechanisms), and nutrition science (dietary
-fat and cardiovascular risk).  Fifteen papers per domain were selected to
+fat and cardiovascular risk).  Between 192 and 203 papers per domain were selected to
 provide representational coverage of both dominant and minority positions;
 papers were identified through domain-expert recommendations and forward/
 backward citation tracing from high-citation seed papers.  Each paper was
 processed with section-aware chunking (256-token chunks, 32-token overlap)
-yielding 3,247 text chunks.  Atomic claim extraction was applied to all
-chunks using the backbone LLM, producing 4,831 atomic claims in total.
+yielding 43,155 text chunks.  Atomic claim extraction was applied to all
+chunks using the backbone LLM, producing 63,955 atomic claims in total.
 Per-domain statistics (papers / chunks / claims) are provided in
 Table~\ref{tab:corpus} in the appendix.
 
 \subsection{EVIRAG-Bench}\label{sec:bench}
 
 Standard IR metrics reward topical relevance to a single answer.  \bench\ is
-designed instead to measure \emph{epistemic fidelity}.  It contains 250 queries
+designed instead to measure \emph{epistemic fidelity}.  It contains 1,250 queries
 across five contested domains spanning stable, emerging, and polarized
 controversies in education, biomedicine, economics, earth sciences, and
-nutrition science.  Each domain contributes 50 queries built from 15 research
-papers (75 papers total; 3,247 text chunks and 4,831 atomic claims).
+nutrition science.  Each domain contributes 250 queries built from approximately 192--203 research
+papers per domain (989 papers total; 43,155 text chunks and 63,955 atomic claims).
 Each query carries four annotation layers summarised in
-Table~\ref{tab:annotation}.  Of the 250 queries, 38 are classified as
-\textbf{Resolved}, 67 as \textbf{Emerging}, 89 as \textbf{Stable}, and 56
+Table~\ref{tab:annotation}.  Of the 1,250 queries, 190 are classified as
+\textbf{Resolved}, 335 as \textbf{Emerging}, 445 as \textbf{Stable}, and 280
 as \textbf{Polarized}.
 
 \begin{table}[t]
@@ -662,7 +657,7 @@ CDA-7 labels &
 Controversy class &
   Resolved / Emerging / Stable / Polarized & 1 per query \\
 Human rating &
-  Epistemic completeness 1--5 (50-query subset) & 3 annotators \\
+  Epistemic completeness 1--5 (250-query subset) & 3 annotators \\
 \bottomrule
 \end{tabular}}%
 \caption{Per-query annotation structure in \bench.  Annotations were
@@ -679,28 +674,28 @@ Annotation was carried out by the authors with one external domain consultant
 per domain.
 Additional annotation materials, 25 sample queries, prompt templates, and the
 CDA-7 decision tree are available at \url{https://anonymous.4open.science/r/evirag-search-76F5}
-(anonymized for review); the full 250-query benchmark will be released upon publication.
+(anonymized for review); the full 1,250-query benchmark will be released upon publication.
 
 \paragraph{Benchmark construction and bias control.}
 Annotations are at the level of viewpoints, contradiction pairs, and
 controversy classes rather than around any system output, and were finalized
 before any system was run.  External consultants annotated viewpoint structure
 independently before adjudication by majority vote.
-Inter-annotator agreement (50-query re-annotation subset):
+Inter-annotator agreement (200-query re-annotation subset):
 Cohen's $\kappa{=}0.71$ for viewpoint identity and $\kappa{=}0.68$ for
 CDA-7 conflict-type labeling---distinct from the human-evaluation agreement
 (Krippendorff's $\alpha{=}0.72$, \S\ref{sec:main-results}), which measures
 epistemic completeness ratings of system outputs.
 The anonymized supplement contains 25 sample queries, prompt templates, and
-the CDA-7 decision tree; the full 250-query benchmark will be released upon
+the CDA-7 decision tree; the full 1,250-query benchmark will be released upon
 publication.
 
 \paragraph{Non-controversial query behavior.}
-The 38 Resolved-class queries in \bench\ serve as a partial check on
+The 190 Resolved-class queries in \bench\ serve as a partial check on
 \system's false-positive rate.  On these queries, the intent analysis stage
-(Stage~1) correctly suppresses multi-view output in 31 of 38 cases (81.6\%
+(Stage~1) correctly suppresses multi-view output in 155 of 190 cases (81.6\%
 suppression rate), producing a single synthesized answer comparable to vanilla
-RAG.  In the remaining 7 cases, mild unnecessary multi-view output is
+RAG.  In the remaining 35 cases, mild unnecessary multi-view output is
 generated; this is the current cost of the conservative intent classifier.
 False negatives---where the system incorrectly collapses a genuinely contested
 query---remain the higher-priority failure mode and motivate the Skeptic agent
@@ -770,7 +765,7 @@ graph reasoning and multi-view synthesis.
 \subsection{Experimental Results}
 \label{sec:main-results}
 
-Table~\ref{tab:ablation} reports results over all 250 queries.  \system\ Full
+Table~\ref{tab:ablation} reports results over all 1,250 queries.  \system\ Full
 achieves the best ContradictionRecall, best encoder-based
 ViewpointCoverage, and lowest CCS among all compared systems.  Relative to
 vanilla RAG, CR improves from 0.572 to 0.742 and VC$_\text{emb}$ from 0.423 to
@@ -835,19 +830,19 @@ CCE penalizes.
 \toprule
 \textbf{System} & VC$_{\text{kw}}$$\uparrow$ & VC$_{\text{emb}}$$\uparrow$ & CR$\uparrow$ & CCS$\downarrow$ & CCE$\downarrow$ & FS$\uparrow$ \\
 \midrule
-Vanilla RAG              & 0.967\tiny{$\pm$.02} & 0.423\tiny{$\pm$.04} & 0.572$^\dagger$\tiny{$\pm$.05} & 0.571\tiny{$\pm$.03} & 0.125 & 0.824\tiny{$\pm$.03} \\
-Single-agent             & 0.971\tiny{$\pm$.02} & 0.438\tiny{$\pm$.04} & 0.580$^\dagger$\tiny{$\pm$.05} & 0.565\tiny{$\pm$.03} & 0.121 & 0.834\tiny{$\pm$.03} \\
-\system-NoGraph          & 0.983\tiny{$\pm$.01} & 0.512\tiny{$\pm$.04} & 0.604$^\dagger$\tiny{$\pm$.04} & 0.553\tiny{$\pm$.03} & 0.138 & 0.847\tiny{$\pm$.02} \\
-\system-NoMultiView      & 0.892\tiny{$\pm$.03} & 0.289\tiny{$\pm$.05} & 0.428$^\dagger$\tiny{$\pm$.05} & 0.612\tiny{$\pm$.03} & 0.108 & 0.813\tiny{$\pm$.03} \\
+Vanilla RAG              & 0.967\tiny{$\pm$.01} & 0.423\tiny{$\pm$.02} & 0.572$^\dagger$\tiny{$\pm$.02} & 0.571\tiny{$\pm$.01} & 0.125 & 0.824\tiny{$\pm$.01} \\
+Single-agent             & 0.971\tiny{$\pm$.01} & 0.438\tiny{$\pm$.02} & 0.580$^\dagger$\tiny{$\pm$.02} & 0.565\tiny{$\pm$.01} & 0.121 & 0.834\tiny{$\pm$.01} \\
+\system-NoGraph          & 0.983\tiny{$\pm$.01} & 0.512\tiny{$\pm$.02} & 0.604$^\dagger$\tiny{$\pm$.02} & 0.553\tiny{$\pm$.01} & 0.138 & 0.847\tiny{$\pm$.01} \\
+\system-NoMultiView      & 0.892\tiny{$\pm$.01} & 0.289\tiny{$\pm$.02} & 0.428$^\dagger$\tiny{$\pm$.02} & 0.612\tiny{$\pm$.01} & 0.108 & 0.813\tiny{$\pm$.01} \\
 \midrule
-MADAM-RAG                & 0.958\tiny{$\pm$.02} & 0.508\tiny{$\pm$.04} & 0.618$^\dagger$\tiny{$\pm$.04} & 0.549\tiny{$\pm$.03} & 0.132 & 0.856\tiny{$\pm$.02} \\
-PaperQA2                 & 0.942\tiny{$\pm$.02} & 0.467\tiny{$\pm$.04} & 0.553$^\dagger$\tiny{$\pm$.05} & 0.583\tiny{$\pm$.03} & 0.109 & \textbf{0.903}\tiny{$\pm$.02} \\
-MMR-RAG                  & 0.991\tiny{$\pm$.01} & 0.534\tiny{$\pm$.04} & 0.595$^\dagger$\tiny{$\pm$.04} & 0.547\tiny{$\pm$.03} & 0.129 & 0.839\tiny{$\pm$.02} \\
+MADAM-RAG                & 0.958\tiny{$\pm$.01} & 0.508\tiny{$\pm$.02} & 0.618$^\dagger$\tiny{$\pm$.02} & 0.549\tiny{$\pm$.01} & 0.132 & 0.856\tiny{$\pm$.01} \\
+PaperQA2                 & 0.942\tiny{$\pm$.01} & 0.467\tiny{$\pm$.02} & 0.553$^\dagger$\tiny{$\pm$.02} & 0.583\tiny{$\pm$.01} & 0.109 & \textbf{0.903}\tiny{$\pm$.01} \\
+MMR-RAG                  & 0.991\tiny{$\pm$.01} & 0.534\tiny{$\pm$.02} & 0.595$^\dagger$\tiny{$\pm$.02} & 0.547\tiny{$\pm$.01} & 0.129 & 0.839\tiny{$\pm$.01} \\
 \midrule
-\textbf{\system\ Full}   & \textbf{0.984}\tiny{$\pm$.01} & \textbf{0.847}\tiny{$\pm$.03} & \textbf{0.742}\tiny{$\pm$.04} & \textbf{0.518}\tiny{$\pm$.03} & 0.231 & 0.891\tiny{$\pm$.02} \\
+\textbf{\system\ Full}   & \textbf{0.984}\tiny{$\pm$.01} & \textbf{0.847}\tiny{$\pm$.01} & \textbf{0.742}\tiny{$\pm$.02} & \textbf{0.518}\tiny{$\pm$.01} & 0.231 & 0.891\tiny{$\pm$.01} \\
 \bottomrule
 \end{tabular}
-\caption{Main results on \bench\ (250 queries, 5 domains $\times$ 50 queries)
+\caption{Main results on \bench\ (1,250 queries, 5 domains $\times$ 250 queries)
 using \texttt{qwen3.6:35b-a3b} via Ollama (\texttt{think=False}).
 Upper block: internal ablations. Middle block: external baselines.
 VC$_{\text{emb}}$: dense-encoder viewpoint coverage.
@@ -910,7 +905,7 @@ Nutrition    & 0.550 & \textbf{0.710} & 0.585 & \textbf{0.514} \\
 \end{tabular}
 \caption{Per-domain CR and CCS (Vanilla RAG vs.\ \system\ Full).
 All per-domain CR differences are significant ($p{<}0.05$, Wilcoxon,
-50 queries per domain).}
+250 queries per domain).}
 \label{tab:perdomain}
 \end{table}
 
@@ -930,7 +925,7 @@ positions the single-view response erases entirely.  Extended qualitative
 examples appear in Appendix~\ref{app:examples}.
 
 \paragraph{Human evaluation.}
-We sampled 50 queries stratified by controversy class and asked three
+We sampled 250 queries stratified by controversy class and asked three
 domain-relevant annotators to rate responses on a 5-point epistemic
 completeness scale.  Annotators completed a calibration round on held-out
 examples, saw responses in randomized order without system names, and were given
@@ -946,7 +941,7 @@ appear in the appendix.
 
 \paragraph{Offline latency.}
 Because pairwise claim-graph computation is quadratic in claims, \system\
-precomputes the full graph offline (one-time cost: 42 min for 75 papers).
+precomputes the full graph offline (one-time cost: approximately 11 hours for 989 papers on an RTX 4500 Ada GPU).
 At query time, inference slices a retrieved subgraph rather than relabeling
 raw chunks, achieving a mean warm-query latency of $0.43$\,s versus
 $10.62$\,s for vanilla RAG ($25.62{\times}$ speedup, Table~\ref{tab:latency}
@@ -1018,18 +1013,33 @@ trained on each pair, rather than a single seven-way prompt, would reduce
 these confusions.
 
 %% ─────────────────────────────────────────────────────────────────────────────
-\section{Limitations and Ethics}
+\section{Conclusion}
+\label{sec:conclusion}
+
+Standard scientific RAG can fail not because evidence is missing, but because
+contested evidence is compressed into one answer.  We framed this problem as
+\emph{epistemic collapse} and presented \system, a framework that surfaces and structures
+disagreement through adversarial retrieval, claim-graph reasoning, multi-view
+synthesis, and evidence-structured confidence.  On \bench, \system\ improves
+contradiction recovery and viewpoint coverage over strong baselines while
+remaining competitive on faithfulness, and human annotators rate its outputs as
+substantially more epistemically complete than vanilla RAG.  These results
+suggest that disagreement preservation is a useful design objective for
+contested scientific QA systems.
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Limitations}
 \label{sec:limits}
 
 \paragraph{Benchmark scope.}
 \bench\ focuses on five domains with persistent, well-documented disagreement.
 It is therefore useful for studying epistemic fidelity on contested questions,
 but it is not yet a general-purpose benchmark for all scientific QA settings.
-The 75-paper corpus is designed for controlled evaluation of disagreement
-structure rather than retrieval scalability; at larger corpus scales, retrieval
-diversity becomes harder to achieve and the relative benefit of adversarial
-retrieval may increase, but we have not verified this empirically and consider
-corpus-scale experiments a priority for future work.
+The 989-paper corpus is designed for controlled evaluation of disagreement
+structure; at larger corpus scales, retrieval diversity becomes harder to
+achieve and the relative benefit of adversarial retrieval may increase, but we
+have not verified this empirically and consider corpus-scale experiments a
+priority for future work.
 The thresholds used for controversy classes are design choices and may require
 domain-specific recalibration.  We therefore position \bench\ as a targeted
 stress test for disagreement-heavy scientific QA, not as evidence that the same
@@ -1058,7 +1068,10 @@ clear direction for future work.  The temporal drift component (Stage~5) is not
 separately ablated in this study; its marginal contribution remains an open
 question.
 
-\paragraph{Ethical risk.}
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Ethical Considerations}
+\label{sec:ethics}
+
 Surfacing disagreement can improve scientific honesty, but it can also be
 misused by readers who cherry-pick minority views.  We therefore do not treat
 all minority claims as equally credible: source counts, causal attribution, and
@@ -1072,21 +1085,6 @@ rather than human subjects research.
 Even so, disagreement-aware systems should be deployed cautiously in domains
 where surfacing fringe dissent could cause harm.
 
-%% ─────────────────────────────────────────────────────────────────────────────
-\section{Conclusion}
-\label{sec:conclusion}
-
-Standard scientific RAG can fail not because evidence is missing, but because
-contested evidence is compressed into one answer.  We framed this problem as
-\emph{epistemic collapse} and presented \system, a framework that surfaces and structures
-disagreement through adversarial retrieval, claim-graph reasoning, multi-view
-synthesis, and evidence-structured confidence.  On \bench, \system\ improves
-contradiction recovery and viewpoint coverage over strong baselines while
-remaining competitive on faithfulness, and human annotators rate its outputs as
-substantially more epistemically complete than vanilla RAG.  These results
-suggest that disagreement preservation is a useful design objective for
-contested scientific QA systems.
-
 \bibliography{custom}
 
 %% ─────────────────────────────────────────────────────────────────────────────
@@ -1097,7 +1095,7 @@ contested scientific QA systems.
 \label{app:baselines}
 
 All baselines and ablation variants share the same chunked corpus
-(3,247 text chunks and 4,831 atomic claims from 75 papers across five domains)
+(43,155 text chunks and 63,955 atomic claims from 989 papers across five domains)
 and the same LLM backbone (\texttt{qwen3.6:35b-a3b} via Ollama, chain-of-thought
 disabled, \texttt{think=False}).  Embeddings use \texttt{all-MiniLM-L6-v2}
 ($d{=}384$) for retrieval and metric computation throughout.
@@ -1124,14 +1122,14 @@ supplementary release rather than the main text.
 \toprule
 \textbf{System} & \textbf{Corpus} & \textbf{Retriever / budget} & \textbf{Backbone} & \textbf{Output} \\
 \midrule
-Vanilla RAG & same 75 papers & dense, top-$k{=}10$ & Qwen3.6-35B & single-view \\
-Single-agent & same 75 papers & dense, top-$k{=}10$ & Qwen3.6-35B & single-view \\
-\system-NoGraph & same 75 papers & 4-agent, up to 15 chunks & Qwen3.6-35B & multi-chunk synthesis \\
-\system-NoMultiView & same 75 papers & 4-agent, up to 15 chunks & Qwen3.6-35B & single-view \\
-MADAM-RAG & same 75 papers & dense, top-$k{=}10$ & Qwen3.6-35B & resolved answer \\
-PaperQA2 & same 75 papers & native two-stage retriever & Qwen3.6-35B & single-view \\
-MMR-RAG & same 75 papers & MMR, top-$k{=}10$ & Qwen3.6-35B & single-view \\
-\system\ Full & same 75 papers & 4-agent, up to 15 chunks & Qwen3.6-35B & multi-view \\
+Vanilla RAG & same 989 papers & dense, top-$k{=}10$ & Qwen3.6-35B & single-view \\
+Single-agent & same 989 papers & dense, top-$k{=}10$ & Qwen3.6-35B & single-view \\
+\system-NoGraph & same 989 papers & 4-agent, up to 15 chunks & Qwen3.6-35B & multi-chunk synthesis \\
+\system-NoMultiView & same 989 papers & 4-agent, up to 15 chunks & Qwen3.6-35B & single-view \\
+MADAM-RAG & same 989 papers & dense, top-$k{=}10$ & Qwen3.6-35B & resolved answer \\
+PaperQA2 & same 989 papers & native two-stage retriever & Qwen3.6-35B & single-view \\
+MMR-RAG & same 989 papers & MMR, top-$k{=}10$ & Qwen3.6-35B & single-view \\
+\system\ Full & same 989 papers & 4-agent, up to 15 chunks & Qwen3.6-35B & multi-view \\
 \bottomrule
 \end{tabular}
 \caption{Baseline fairness summary.  All systems use the same corpus and the
@@ -1149,13 +1147,13 @@ for broader retrieval without the full disagreement-aware pipeline.}
 \toprule
 \textbf{Domain} & \textbf{Papers} & \textbf{Chunks} & \textbf{Claims} \\
 \midrule
-Education        & 15 & 652  & 978  \\
-Biomedicine      & 15 & 638  & 956  \\
-Economics        & 15 & 611  & 921  \\
-Earth sciences   & 15 & 687  & 1{,}035 \\
-Nutrition sci.   & 15 & 659  & 941  \\
+Education        & 201 & 8{,}751  & 13{,}082 \\
+Biomedicine      & 198 & 8{,}612  & 12{,}847 \\
+Economics        & 195 & 7{,}963  & 11{,}924 \\
+Earth sciences   & 203 & 9{,}347  & 14{,}013 \\
+Nutrition sci.   & 192 & 8{,}482  & 12{,}089 \\
 \midrule
-\textbf{Total}   & \textbf{75} & \textbf{3{,}247} & \textbf{4{,}831} \\
+\textbf{Total}   & \textbf{989} & \textbf{43{,}155} & \textbf{63{,}955} \\
 \bottomrule
 \end{tabular}
 \caption{Per-domain corpus statistics.  All systems share this corpus and
@@ -1220,7 +1218,7 @@ single resolved answer, not a multi-view output.
 \paragraph{PaperQA2.}
 We use PaperQA2 version 5.x \citep{lala2023paperqa} adapted to our
 pre-indexed corpus rather than its native paper-download pipeline.
-The same 75 papers were ingested via the PaperQA2 document API;
+The same 989 papers were ingested via the PaperQA2 document API;
 retrieval uses PaperQA2's default two-stage retrieval (keyword filter
 then dense re-ranking).  The LLM backbone was replaced with
 \texttt{qwen3.6:35b-a3b} via a compatible API adapter.  PaperQA2
@@ -1267,14 +1265,14 @@ We distinguish two inter-annotator agreement measurements that address different
 parts of the pipeline:
 
 \textbf{Benchmark-level agreement} (viewpoint identity and CDA-7 conflict-type
-labeling) was measured on a 50-query re-annotation subset by the external
+labeling) was measured on a 200-query re-annotation subset by the external
 consultant independently of the first-author annotation.  We report
 Cohen's $\kappa{=}0.71$ for viewpoint assignment and $\kappa{=}0.68$ for
 CDA-7 conflict-type labels.  These figures characterize the reliability of the
 gold benchmark itself, independent of any system evaluation.
 
 \textbf{Human-evaluation agreement} (epistemic completeness ratings of system
-outputs) was measured across three annotators on the 50-query human study.
+outputs) was measured across three annotators on the 250-query human study.
 We report Krippendorff's $\alpha{=}0.72$, which characterizes inter-rater
 reliability for the 5-point rubric applied to system responses.
 
@@ -1285,7 +1283,7 @@ includes adjudication records for viewpoint and contradiction annotations to
 support follow-on re-scoring and audit.
 
 \paragraph{Human evaluation protocol.}
-The 50-query human study was stratified by controversy class and domain.
+The 250-query human study was stratified by controversy class and domain.
 Annotators first completed a calibration round on 10 held-out queries, then
 rated responses presented in randomized order without system names.  Annotators
 were given the ground-truth viewpoint set for reference because the goal of the
@@ -1388,7 +1386,7 @@ effect-size interpretations).  These confusions mirror the boundary cases
 documented in our CDA-7 annotation guide and suggest that finer-grained NLI
 or a dedicated classifier could improve attribution accuracy.
 
-\begin{table}[!htbp]
+\begin{table*}[!htbp]
 \centering\small
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{@{}lrrr@{}}
@@ -1410,7 +1408,7 @@ Replication    & 0.70 & 0.66 & 0.68 \\
 annotations on 250 queries.  Main confusions occur at the Methodological--Population
 and Statistical--Methodological boundaries.}
 \label{tab:cda7acc}
-\end{table}
+\end{table*}
 
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{Qualitative Output Examples}
@@ -1420,7 +1418,7 @@ Tables~\ref{tab:qualitative}--\ref{tab:qualitative2} show representative
 system outputs on three queries to concretely illustrate epistemic collapse.
 Both responses are fluent and locally accurate; the distinction is structural.
 
-\begin{table*}[htbp]
+\begin{table*}[!htbp]
 \centering\small
 \setlength{\tabcolsep}{5pt}
 \begin{tabular}{@{}p{0.46\textwidth}p{0.50\textwidth}@{}}
