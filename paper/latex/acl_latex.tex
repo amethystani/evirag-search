@@ -94,97 +94,104 @@ output interface that preserves viewpoint structure, provenance, and uncertainty
 Improving retrieval recall alone does not solve the problem if synthesis still
 compresses the evidence to one paragraph.
 
-\begin{figure}[t]
 \nolinenumbers
+\begin{figure}[t]
 \centering
 \resizebox{\columnwidth}{!}{%
 \begin{tikzpicture}[>=stealth]
 \tikzset{
-  qbox/.style={rectangle, rounded corners=6pt,
-    draw=black!40, fill=gray!8, text width=7.8cm,
-    align=center, font=\normalsize, inner sep=10pt, line width=0.9pt},
-  hdr/.style={rectangle, rounded corners=4pt,
-    minimum width=3.45cm, minimum height=0.74cm,
-    align=center, font=\small\bfseries, inner sep=6pt, line width=1.0pt},
-  stdbox/.style={rectangle, rounded corners=5pt,
-    draw=orange!68!red, fill=orange!9, text width=3.1cm,
-    align=left, font=\small, inner sep=10pt, line width=1.0pt},
-  evbox/.style={rectangle, rounded corners=5pt,
-    draw=blue!55, fill=blue!8, text width=3.3cm,
-    align=left, font=\small, inner sep=10pt, line width=1.0pt},
+  qbox/.style={rectangle, rounded corners=6pt, draw=black!40, fill=gray!8,
+    text width=7.8cm, align=center, font=\normalsize,
+    inner sep=10pt, line width=0.9pt},
+  hdr/.style={rectangle, rounded corners=4pt, minimum width=3.50cm,
+    minimum height=0.76cm, align=center, font=\small\bfseries,
+    inner sep=6pt, line width=1.0pt},
+  stdbox/.style={rectangle, rounded corners=5pt, draw=orange!70!red,
+    fill=orange!9, text width=3.05cm, align=left, font=\small,
+    inner sep=10pt, line width=1.0pt},
+  evbox/.style={rectangle, rounded corners=5pt, draw=blue!55,
+    fill=blue!8, text width=3.05cm, align=left, font=\small,
+    inner sep=10pt, line width=1.0pt},
   sarr/.style={->, line width=1.5pt, color=orange!82!red, >=stealth},
   earr/.style={->, line width=1.5pt, color=blue!65, >=stealth},
-  stem/.style={line width=0.9pt, color=black!28},
+  stem/.style={line width=1.0pt, color=black!25},
 }
 
 %%── Query box ────────────────────────────────────────────────────────────────
-\node[qbox] (q) at (4.15, 7.7) {%
+\node[qbox] (q) at (4.20, 7.5) {%
   \textbf{Scientific query:}\enspace
-  ``Does homework improve\\[2pt]academic achievement?''};
+  ``Does homework improve academic achievement?''};
 
-%%── Y-fork stem (neutral gray line from query bottom) ───────────────────────
-\coordinate (fork) at (4.15, 6.72);
+%%── Y-fork: neutral stem then colored branches ───────────────────────────────
+\coordinate (fork) at (4.20, 6.52);
 \draw[stem] (q.south) -- (fork);
 
 %%── Column headers ───────────────────────────────────────────────────────────
-\node[hdr, draw=orange!68!red, fill=orange!16, text=orange!83!red]
-  (stdh) at (2.05, 5.75) {$r^\mathrm{std}$:\;Standard RAG};
+\node[hdr, draw=orange!70!red, fill=orange!16, text=orange!84!red]
+  (stdh) at (2.10, 5.60) {$r^\mathrm{std}$:\;Standard RAG};
 \node[hdr, draw=blue!55, fill=blue!14, text=blue!72]
-  (evh)  at (6.45, 5.75) {$r^\mathrm{ev}$:\;\textsc{EVIRAG}};
+  (evh)  at (6.40, 5.60) {$r^\mathrm{ev}$:\;\textsc{EVIRAG}};
 
-%%── Fork → headers (Y-branch arrows) ────────────────────────────────────────
+%%── Fork → header arrows (Y-branches) ───────────────────────────────────────
 \draw[sarr] (fork) -| (stdh.north);
 \draw[earr] (fork) -| (evh.north);
+\draw[sarr] (stdh.south) -- ++(0,-0.28);
+\draw[earr] (evh.south)  -- ++(0,-0.28);
 
-%%── Header → box arrows ──────────────────────────────────────────────────────
-\draw[sarr] (stdh.south) -- ++(0,-0.32);
-\draw[earr] (evh.south)  -- ++(0,-0.32);
-
-%%── Standard RAG output ──────────────────────────────────────────────────────
-\node[stdbox, below=0.32cm of stdh] (stdbox) {%
-  \emph{``Homework consistently\\
-  improves performance,\\
-  stronger for grades 7--12.''}\\[8pt]
-  \rule{2.7cm}{0.35pt}\\[6pt]
-  {\scriptsize
-    \textcolor{red!65!black}{$\boldsymbol{\times}$\enspace
-    2\,/\,3 viewpoints erased}\\[4pt]
-    VC$_{\text{emb}}$\;=\;0.33\quad
-    CCS\;=\;0.38}};
-
-%%── EVIRAG output ────────────────────────────────────────────────────────────
-\node[evbox, below=0.32cm of evh] (evbox) {%
-  \textbf{V1}\enspace\textit{[dominant,\;6\,src]}\\[2pt]
+%%── Standard RAG box — mirrors V1/V2/V3 structure; V2 & V3 faded ────────────
+\node[stdbox, below=0.28cm of stdh] (stdbox) {%
+  \textbf{V1}\;\textit{(returned)}\\[2pt]
   {\scriptsize Grade 7--12 gain ($d\!\approx\!0.30$)\\
     CDA-7:\;\textit{methodological}}\\[7pt]
-  \textbf{V2}\enspace\textit{[alternative,\;3\,src]}\\[2pt]
+  {\color{black!38}%
+    \textbf{V2}\;\textit{(suppressed)}\;\textcolor{red!65!black}{$\boldsymbol{\times}$}}\\[2pt]
+  {\scriptsize\color{black!38}%
+    No effect after SES control\\
+    CDA-7:\;\textit{statistical}}\\[7pt]
+  {\color{black!38}%
+    \textbf{V3}\;\textit{(suppressed)}\;\textcolor{red!65!black}{$\boldsymbol{\times}$}}\\[2pt]
+  {\scriptsize\color{black!38}%
+    Wellbeing harm, no academic gain\\
+    CDA-7:\;\textit{operational}}\\[8pt]
+  \rule{2.7cm}{0.35pt}\\[5pt]
+  {\scriptsize
+    \textcolor{red!65!black}{$\boldsymbol{\times}$\enspace
+    2\,/\,3 viewpoints erased}\\[3pt]
+    VC$_\text{emb}$\,=\,0.33\quad CCS\,=\,0.38}};
+
+%%── EVIRAG box — same V1/V2/V3 structure; all views surfaced ─────────────────
+\node[evbox, below=0.28cm of evh] (evbox) {%
+  \textbf{V1}\;\textit{(dominant, 6\,src)}\\[2pt]
+  {\scriptsize Grade 7--12 gain ($d\!\approx\!0.30$)\\
+    CDA-7:\;\textit{methodological}}\\[7pt]
+  \textbf{V2}\;\textit{(alt., 3\,src)}\\[2pt]
   {\scriptsize No effect after SES control\\
     CDA-7:\;\textit{statistical}}\\[7pt]
-  \textbf{V3}\enspace\textit{[minority,\;2\,src]}\\[2pt]
+  \textbf{V3}\;\textit{(min., 2\,src)}\\[2pt]
   {\scriptsize Wellbeing harm, no academic gain\\
     CDA-7:\;\textit{operational\;/\;conf.\;low}}\\[8pt]
-  \rule{2.95cm}{0.35pt}\\[6pt]
+  \rule{2.7cm}{0.35pt}\\[5pt]
   {\scriptsize
     \textcolor{blue!70}{$\checkmark$\enspace
-    All 3 viewpoints surfaced}\\[4pt]
-    VC$_{\text{emb}}$\;=\;1.00\quad
-    CCS\;=\;0.52}};
+    All 3 viewpoints surfaced}\\[3pt]
+    VC$_\text{emb}$\,=\,1.00\quad CCS\,=\,0.52}};
 
-%%── Vertical column divider ──────────────────────────────────────────────────
-\draw[gray!28, densely dashed, line width=0.7pt]
-  (4.25, 6.20) -- (4.25, -0.7);
+%%── Vertical divider ─────────────────────────────────────────────────────────
+\draw[gray!26, densely dashed, line width=0.7pt]
+  (4.25, 5.99) -- (4.25, -0.65);
 
 \end{tikzpicture}}%
-\linenumbers
 \caption{Epistemic collapse vs.\ disagreement-aware generation.
-\textbf{Left} ($r^\mathrm{std}$): Standard RAG returns one fluent answer,
-erasing 2 of 3 viewpoints and suppressing the structure of scientific
-disagreement.
-\textbf{Right} ($r^\mathrm{ev}$): \system\ surfaces all three viewpoints with
-source counts, CDA-7 causal attribution, and evidence-structured confidence.
-Metric values are for the homework-effectiveness query.}
+Both columns show the same three viewpoints recovered from the homework
+literature.
+\textbf{Left} ($r^\mathrm{std}$, Standard RAG): surfaces only V1;
+V2 and V3 (faded) are silently erased from the response.
+\textbf{Right} ($r^\mathrm{ev}$, \system): surfaces all three with source
+counts, CDA-7 causal attribution, and evidence-structured confidence.
+Metrics are for the homework-effectiveness query.}
 \label{fig:collapse}
 \end{figure}
+\linenumbers
 
 \paragraph{Approach.}
 \system\ is designed around that premise.  It uses adversarial retrieval to
