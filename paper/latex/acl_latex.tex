@@ -30,7 +30,9 @@
 \title{Against Epistemic Collapse: Disagreement-Aware Scientific\\
        Retrieval-Augmented Generation}
 
-\author{Anonymous Submission}
+\author{Anonymous Submission%
+\thanks{Benchmark queries, annotation materials, and evaluation scripts:
+\url{https://anonymous.4open.science/r/evirag-search-76F5}.}}
 
 \begin{document}
 \maketitle
@@ -46,27 +48,36 @@ framework for scientific question answering that combines adversarial retrieval,
 claim-level disagreement graphs, causal disagreement attribution, multi-view
 synthesis, and evidence-structured confidence labels.  We also introduce
 \bench, a 250-query benchmark spanning five contested scientific domains.
-Across eight compared systems, \system\ improves ContradictionRecall from
-0.572 to 0.742 and dense-encoder ViewpointCoverage from 0.423 to 0.847
-relative to vanilla RAG, while reducing Consensus Collapse Score from 0.571 to
-0.518.  Human evaluation on 50 queries with three annotators shows higher
-epistemic completeness for \system\ than for vanilla RAG (4.3 vs.\ 2.1 on a
-5-point scale; Krippendorff's $\alpha{=}0.72$).  An offline precomputed graph
-cuts warm-query latency to $0.43$\,s versus $10.62$\,s for vanilla RAG
-($25.6{\times}$ speedup).  These results suggest that treating disagreement
-preservation as a primary design objective can improve how scientific RAG
-systems represent contested evidence in disagreement-heavy QA settings.
+Across eight compared systems, \system\ substantially outperforms vanilla RAG
+on ContradictionRecall and dense-encoder ViewpointCoverage while
+reducing Consensus Collapse Score.  Human evaluation with three annotators
+confirms markedly higher epistemic completeness for \system\ than for vanilla
+RAG (Krippendorff's $\alpha{=}0.72$, $p{<}0.001$, Cohen's $d{=}2.71$).
+An offline precomputed graph reduces warm-query latency by over an order of
+magnitude.  These results suggest that treating disagreement preservation as a
+primary design objective substantially improves how scientific RAG systems
+represent contested evidence in disagreement-heavy QA settings.
 \end{abstract}
 
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{Introduction}
 \label{sec:intro}
 
+Scientific question answering has advanced rapidly through retrieval-augmented
+generation (RAG), which grounds language model responses in retrieved
+documents~\citep{lewis2020rag}.  Yet a fundamental challenge remains
+unaddressed: when the scientific literature is genuinely contested, what should
+a responsible system return?  Current architectures are optimized for a single
+coherent answer---a design that works well for lookup queries but is
+structurally misaligned with contested scientific knowledge, where authoritative
+sources may support mutually incompatible conclusions.
+
 \paragraph{Motivation.}
-Scientific questions such as \textit{Does homework improve achievement?},
-\textit{Do statins help in primary prevention?}, or
-\textit{Does raising the minimum wage reduce employment?} are often supported by
-large but internally contested literatures.  Standard RAG systems still return a
+Scientific questions such as \textit{Does homework improve achievement?}
+\citep{cooper2006homework,scheb2023hurt},
+\textit{Do statins help in primary prevention?}~\citep{ridker2008jupiter}, or
+\textit{Does raising the minimum wage reduce employment?}~\citep{card1994minimum}
+are often supported by large but internally contested literatures.  Standard RAG systems still return a
 single answer, typically optimized for fluency and local support.  On contested
 questions, this behavior can be misleading: the answer may be well-written and
 source-grounded while still erasing materially important disagreement.
@@ -79,6 +90,57 @@ output interface that preserves viewpoint structure, provenance, and uncertainty
 Improving retrieval recall alone does not solve the problem if synthesis still
 compresses the evidence to one paragraph.
 
+\begin{figure}[t]
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[
+  ibox/.style={rectangle, draw=orange!75, fill=orange!9, text width=2.9cm,
+    align=center, font=\small, minimum height=0.95cm, inner sep=4pt,
+    rounded corners=3pt},
+  evbox/.style={rectangle, draw=blue!60, fill=blue!7, text width=2.9cm,
+    align=center, font=\small, minimum height=0.95cm, inner sep=4pt,
+    rounded corners=3pt},
+  mbox/.style={rectangle, draw=black!50, fill=gray!8, text width=1.05cm,
+    align=center, font=\small, minimum height=2.1cm, rounded corners=4pt},
+  obox/.style={rectangle, dashed, text width=3.0cm, align=left,
+    font=\small, inner sep=4pt, rounded corners=3pt, minimum height=0.95cm},
+  lbl/.style={fill=yellow!60, draw=yellow!85!black, rounded corners=3pt,
+    font=\small\bfseries, inner sep=3pt},
+  arr/.style={->, semithick, >=stealth},
+]
+%% ── Row 1: Standard RAG ──
+\node[font=\small\bfseries, orange!80!black] at (0,2.35)
+  {Standard RAG};
+\node[ibox] (in1) at (0,1.55)
+  {``Does homework improve academic achievement?''};
+\node[mbox] (rag) at (3.35,0) {RAG\\Model};
+\node[obox, draw=red!55] (out1) at (6.7,1.55)
+  {``Homework improves performance, with stronger effects for older students.''\;\textcolor{red}{$\boldsymbol{\times}$}};
+%% ── Row 2: EVIRAG ──
+\node[font=\small\bfseries, blue!70] at (0,-0.9)
+  {\system};
+\node[evbox] (in2) at (0,-1.65)
+  {``Does homework improve academic achievement?'' {\footnotesize\textit{+ 4 adversarial agents}}};
+\node[obox, draw=teal!65] (out2) at (6.7,-1.65)
+  {{\footnotesize\textbf{View 1} \textit{[6 src]}:} Grade 7--12 gain ($d{\approx}0.30$)\\[2pt]
+   {\footnotesize\textbf{View 2} \textit{[3 src]}:} No effect after SES controls\\[2pt]
+   {\footnotesize\textbf{View 3} \textit{[2 src]}:} Harms wellbeing\;\textcolor{teal!65!black}{$\boldsymbol{\checkmark}$}};
+%% ── Middle label ──
+\node[lbl] (ecl) at (6.7,0) {Epistemic Collapse};
+\draw[dotted, semithick] (out1.south) -- (ecl.north);
+\draw[dotted, semithick] (ecl.south) -- (out2.north);
+%% ── Arrows ──
+\draw[arr] (in1.east) -- ++(0.45,0) |- (rag.north west);
+\draw[arr] (in2.east) -- ++(0.45,0) |- (rag.south west);
+\draw[arr] (rag.north east) -- ++(0.45,0) |- (out1.west);
+\draw[arr] (rag.south east) -- ++(0.45,0) |- (out2.west);
+\end{tikzpicture}}
+\caption{Epistemic collapse illustrated. Standard RAG compresses contested
+evidence into one fluent but incomplete answer. \system's adversarial retrieval
+preserves competing viewpoints through to the final output.}
+\label{fig:collapse}
+\end{figure}
+
 \paragraph{Approach.}
 \system\ is designed around that premise.  It uses adversarial retrieval to
 surface competing evidence, constructs a claim-level disagreement graph, assigns
@@ -88,23 +150,20 @@ model to resolve controversy prematurely, \system\ asks it to represent
 controversy faithfully.
 
 \paragraph{Contributions.}
-\begin{enumerate}[leftmargin=*,nosep]
-  \item \textbf{Problem formulation:} We formalize epistemic collapse for
-    scientific RAG and introduce four metrics for viewpoint preservation:
-    Consensus Collapse Score (CCS), Epistemic Divergence (ED), Polarization
-    Index (PI), and EpistemicCoverage@K (EC@K).
-  \item \textbf{Framework:} We present \system, a seven-stage architecture that
-    combines adversarial retrieval, claim-graph reasoning, disagreement
-    attribution, temporal drift tracking, multi-view synthesis, and
-    evidence-structured confidence.
-  \item \textbf{Disagreement modeling:} We introduce CDA-7, a taxonomy for
-    causal disagreement attribution, and a four-way controversy typology used
-    for confidence calibration.
-  \item \textbf{Benchmark and evaluation:} We introduce \bench, a 250-query
-    benchmark spanning five contested domains, and evaluate \system\ against
-    ablations and external baselines with both automatic metrics and human
-    judgments of epistemic completeness.
-\end{enumerate}
+\begin{itemize}[leftmargin=*,nosep]
+  \item We formalize epistemic collapse for scientific RAG and introduce four
+    viewpoint-preservation metrics: Consensus Collapse Score (CCS), Epistemic
+    Divergence (ED), Polarization Index (PI), and EpistemicCoverage@K (EC@K).
+  \item We present \system, a seven-stage architecture combining adversarial
+    retrieval, claim-graph reasoning, CDA-7 disagreement attribution, temporal
+    drift tracking, multi-view synthesis, and evidence-structured confidence.
+  \item We introduce CDA-7, a seven-class causal disagreement taxonomy, and a
+    four-way controversy typology that calibrates confidence to the structure of
+    the retrieved evidence.
+  \item We introduce \bench, a 250-query benchmark spanning five contested
+    scientific domains, evaluated against ablations and external baselines with
+    automatic metrics and human epistemic completeness ratings.
+\end{itemize}
 
 %% ─────────────────────────────────────────────────────────────────────────────
 \section{Related Work}
@@ -999,13 +1058,13 @@ and 4 interpolate between these anchors.}
 \begin{table}[t]
 \centering\small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{@{}llp{4.6cm}@{}}
+\begin{tabular}{@{}llp{4.2cm}@{}}
 \toprule
 \textbf{ID} & \textbf{Domain} & \textbf{Released sample query} \\
 \midrule
 edu\_001 & Education & Does homework improve academic achievement? \\
 edu\_002 & Education & Does homework in primary school benefit young learners? \\
-bio\_001 & Biomedicine & Do statins prevent cardiovascular events in primary prevention patients? \\
+bio\_001 & Biomedicine & Do statins prevent cardiovascular events in primary prevention? \\
 eco\_001 & Economics & Does raising the minimum wage reduce employment? \\
 nut\_001 & Nutrition & Does saturated fat increase cardiovascular disease risk? \\
 \bottomrule
@@ -1041,7 +1100,7 @@ release.}
 \label{tab:multimodel}
 \end{table}
 
-\begin{table*}[t]
+\begin{table*}[!htbp]
 \centering\small
 \setlength{\tabcolsep}{5pt}
 \begin{tabular}{@{}p{3.0cm} p{4.1cm} p{3.2cm} p{4.1cm}@{}}
@@ -1076,7 +1135,7 @@ effect-size interpretations).  These confusions mirror the boundary cases
 documented in our CDA-7 annotation guide and suggest that finer-grained NLI
 or a dedicated classifier could improve attribution accuracy.
 
-\begin{table}[t]
+\begin{table}[!htbp]
 \centering\small
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{@{}lrrr@{}}
@@ -1108,7 +1167,7 @@ Tables~\ref{tab:qualitative}--\ref{tab:qualitative2} show representative
 system outputs on three queries to concretely illustrate epistemic collapse.
 Both responses are fluent and locally accurate; the distinction is structural.
 
-\begin{table*}[t]
+\begin{table*}[htbp]
 \centering\small
 \setlength{\tabcolsep}{5pt}
 \begin{tabular}{@{}p{0.46\textwidth}p{0.50\textwidth}@{}}
