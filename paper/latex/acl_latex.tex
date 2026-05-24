@@ -94,50 +94,64 @@ compresses the evidence to one paragraph.
 \centering
 \resizebox{\columnwidth}{!}{%
 \begin{tikzpicture}[
-  ibox/.style={rectangle, draw=orange!75, fill=orange!9, text width=2.9cm,
-    align=center, font=\small, minimum height=0.95cm, inner sep=4pt,
-    rounded corners=3pt},
-  evbox/.style={rectangle, draw=blue!60, fill=blue!7, text width=2.9cm,
-    align=center, font=\small, minimum height=0.95cm, inner sep=4pt,
-    rounded corners=3pt},
-  mbox/.style={rectangle, draw=black!50, fill=gray!8, text width=1.05cm,
-    align=center, font=\small, minimum height=2.1cm, rounded corners=4pt},
-  obox/.style={rectangle, dashed, text width=3.0cm, align=left,
-    font=\small, inner sep=4pt, rounded corners=3pt, minimum height=0.95cm},
-  lbl/.style={fill=yellow!60, draw=yellow!85!black, rounded corners=3pt,
-    font=\small\bfseries, inner sep=3pt},
-  arr/.style={->, semithick, >=stealth},
+  %% ── Shared styles ──
+  ibox/.style={rectangle, draw=orange!80, fill=orange!10, line width=0.9pt,
+    text width=2.95cm, align=center, font=\small,
+    minimum height=1.05cm, inner sep=5pt, rounded corners=4pt},
+  evbox/.style={rectangle, draw=blue!65, fill=blue!8, line width=0.9pt,
+    text width=2.95cm, align=center, font=\small,
+    minimum height=1.05cm, inner sep=5pt, rounded corners=4pt},
+  mbox/.style={rectangle, draw=black!55, fill=gray!7, line width=1.0pt,
+    text width=1.15cm, align=center, font=\small\bfseries,
+    minimum height=3.0cm, rounded corners=5pt},
+  obox/.style={rectangle, line width=0.8pt, text width=3.05cm,
+    align=left, font=\small, inner sep=5pt, rounded corners=4pt,
+    minimum height=1.0cm},
+  ecllbl/.style={rectangle, fill=yellow!70, draw=orange!50, line width=0.8pt,
+    rounded corners=4pt, font=\small\bfseries, inner sep=5pt},
+  rowlbl/.style={font=\small\bfseries},
+  arr/.style={->, line width=0.9pt, >=stealth},
 ]
-%% ── Row 1: Standard RAG ──
-\node[font=\small\bfseries, orange!80!black] at (0,2.35)
-  {Standard RAG};
-\node[ibox] (in1) at (0,1.55)
+
+%% ══ Row 1: Standard RAG (top) ══
+\node[rowlbl, orange!85!black] at (0, 2.30) {Standard RAG};
+\node[ibox] (in1) at (0, 1.45)
   {``Does homework improve academic achievement?''};
-\node[mbox] (rag) at (3.35,0) {RAG\\Model};
-\node[obox, draw=red!55] (out1) at (6.7,1.55)
-  {``Homework improves performance, with stronger effects for older students.''\;\textcolor{red}{$\boldsymbol{\times}$}};
-%% ── Row 2: EVIRAG ──
-\node[font=\small\bfseries, blue!70] at (0,-0.9)
-  {\system};
-\node[evbox] (in2) at (0,-1.65)
-  {``Does homework improve academic achievement?'' {\footnotesize\textit{+ 4 adversarial agents}}};
-\node[obox, draw=teal!65] (out2) at (6.7,-1.65)
-  {{\footnotesize\textbf{View 1} \textit{[6 src]}:} Grade 7--12 gain ($d{\approx}0.30$)\\[2pt]
-   {\footnotesize\textbf{View 2} \textit{[3 src]}:} No effect after SES controls\\[2pt]
-   {\footnotesize\textbf{View 3} \textit{[2 src]}:} Harms wellbeing\;\textcolor{teal!65!black}{$\boldsymbol{\checkmark}$}};
-%% ── Middle label ──
-\node[lbl] (ecl) at (6.7,0) {Epistemic Collapse};
-\draw[dotted, semithick] (out1.south) -- (ecl.north);
-\draw[dotted, semithick] (ecl.south) -- (out2.north);
-%% ── Arrows ──
-\draw[arr] (in1.east) -- ++(0.45,0) |- (rag.north west);
-\draw[arr] (in2.east) -- ++(0.45,0) |- (rag.south west);
-\draw[arr] (rag.north east) -- ++(0.45,0) |- (out1.west);
-\draw[arr] (rag.south east) -- ++(0.45,0) |- (out2.west);
-\end{tikzpicture}}
-\caption{Epistemic collapse illustrated. Standard RAG compresses contested
-evidence into one fluent but incomplete answer. \system's adversarial retrieval
-preserves competing viewpoints through to the final output.}
+\node[obox, dashed, draw=red!65] (out1) at (6.85, 1.45)
+  {``Homework improves performance, with stronger effects for older
+   students.''\;\textcolor{red!80!black}{$\boldsymbol{\times}$}};
+
+%% ══ Shared model ══
+\node[mbox] (rag) at (3.42, 0) {RAG\\Model};
+
+%% ══ Row 2: EVIRAG (bottom) ══
+\node[evbox] (in2) at (0, -1.45)
+  {``Does homework improve academic achievement?''
+   {\footnotesize\textit{\,+\,4 adversarial\\[-1pt]agents}}};
+\node[rowlbl, blue!70] at (0, -2.35) {\system};
+\node[obox, dashed, draw=teal!70] (out2) at (6.85, -1.45)
+  {{\scriptsize\textbf{View 1} \textit{[6\,src]}:} Grade 7--12 gain
+   ($d{\approx}0.30$)\\[3pt]
+   {\scriptsize\textbf{View 2} \textit{[3\,src]}:} No effect after SES
+   controls\\[3pt]
+   {\scriptsize\textbf{View 3} \textit{[2\,src]}:} Harms wellbeing
+   \;\textcolor{teal!70!black}{$\boldsymbol{\checkmark}$}};
+
+%% ══ "Epistemic Collapse" centred between outputs ══
+\node[ecllbl] (ecl) at (6.85, 0) {Epistemic Collapse};
+\draw[dotted, line width=0.8pt] (out1.south) -- (ecl.north);
+\draw[dotted, line width=0.8pt] (ecl.south) -- (out2.north);
+
+%% ══ Arrows — all horizontal (RAG box spans both row y-values) ══
+\draw[arr] (in1.east)  -- ++(0.4,0) |- (rag.north west);
+\draw[arr] (in2.east)  -- ++(0.4,0) |- (rag.south west);
+\draw[arr] (rag.north east) -- ++(0.4,0) |- (out1.west);
+\draw[arr] (rag.south east) -- ++(0.4,0) |- (out2.west);
+\end{tikzpicture}}%
+\caption{Epistemic collapse illustrated. Standard RAG compresses
+contested evidence into one fluent but incomplete answer.
+\system's adversarial retrieval preserves competing viewpoints
+through to the final output.}
 \label{fig:collapse}
 \end{figure}
 
