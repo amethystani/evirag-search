@@ -117,14 +117,14 @@ compresses the evidence to one paragraph.
 %% ══════════════════════════════════════════════════════════════════
 %% Panel background
 \fill[orange!7, rounded corners=6pt]
-  (0.00, 0.20) rectangle (4.30, 5.10);
+  (0.00, -0.15) rectangle (4.30, 5.10);
 %% Header bar (clipped so top corners match the panel's rounding)
 \begin{scope}
-  \clip[rounded corners=6pt] (0.00, 0.20) rectangle (4.30, 5.10);
+  \clip[rounded corners=6pt] (0.00, -0.15) rectangle (4.30, 5.10);
   \fill[orange!75!red!85] (0.00, 4.45) rectangle (4.30, 5.10);
 \end{scope}
 \draw[orange!32, rounded corners=6pt, line width=0.65pt]
-  (0.00, 0.20) rectangle (4.30, 5.10);
+  (0.00, -0.15) rectangle (4.30, 5.10);
 \node[font=\small\bfseries, white] at (2.15, 4.78)
   {Standard RAG};
 
@@ -150,14 +150,14 @@ compresses the evidence to one paragraph.
 %% ══════════════════════════════════════════════════════════════════
 %% Panel background
 \fill[blue!6, rounded corners=6pt]
-  (5.10, 0.20) rectangle (9.40, 5.10);
+  (5.10, -0.15) rectangle (9.40, 5.10);
 %% Header bar (clipped)
 \begin{scope}
-  \clip[rounded corners=6pt] (5.10, 0.20) rectangle (9.40, 5.10);
+  \clip[rounded corners=6pt] (5.10, -0.15) rectangle (9.40, 5.10);
   \fill[blue!68] (5.10, 4.45) rectangle (9.40, 5.10);
 \end{scope}
 \draw[blue!28, rounded corners=6pt, line width=0.65pt]
-  (5.10, 0.20) rectangle (9.40, 5.10);
+  (5.10, -0.15) rectangle (9.40, 5.10);
 \node[font=\small\bfseries, white] at (7.25, 4.78)
   {\system};
 
@@ -166,11 +166,11 @@ compresses the evidence to one paragraph.
   {4 adversarial agents\\(diverse retrieval)};
 \node[stepbox] (rs2) at (7.25, 3.10)
   {Claim graph + NLI\\(disagreement struct.)};
-\node[stepbox] (rs3) at (7.25, 2.42)
+\node[stepbox] (rs3) at (7.25, 2.55)
   {Multi-view synthesis};
 
 %% Output
-\node[evout] (rout) at (7.25, 1.18)
+\node[evout] (rout) at (7.25, 0.70)
   {\textbf{View 1}~\textit{[6\,src]:}~Gr.~7--12 gain ($d{\approx}0.30$)%
    \\[2pt]
    \textbf{View 2}~\textit{[3\,src]:}~No effect after SES controls%
