@@ -97,102 +97,82 @@ compresses the evidence to one paragraph.
 \begin{figure}[t]
 \centering
 \resizebox{\columnwidth}{!}{%
-\begin{tikzpicture}[>=stealth, font=\normalsize]
-%%── Styles ────────────────────────────────────────────────────────────────
+\begin{tikzpicture}[>=stealth]
 \tikzset{
-  qbox/.style={rectangle, rounded corners=5pt, line width=0.8pt,
-    text width=2.2cm, align=left, inner sep=7pt},
-  abox/.style={rectangle, rounded corners=6pt,
-    draw=orange!60!black, fill=yellow!22, line width=1.1pt,
-    text width=1.85cm, align=center, inner sep=9pt},
-  lnode/.style={circle, fill=black!82, minimum size=6pt, inner sep=0pt},
-  qnode/.style={circle, fill=green!62!black, minimum size=9pt, inner sep=0pt},
-  epath/.style={->, line width=1.2pt, color=orange!82!red, >=stealth,
-    dash pattern=on 6pt off 3pt},
-  cpath/.style={->, line width=1.2pt, color=blue!65, >=stealth,
-    dash pattern=on 6pt off 3pt},
-  apath/.style={->, line width=0.9pt, color=black!50, >=stealth,
-    dash pattern=on 4pt off 2pt},
-  elab/.style={fill=white, inner sep=1.5pt, font=\small, text=black!55},
+  qbox/.style={rectangle, rounded corners=5pt,
+    draw=black!48, fill=gray!7, text width=7.5cm,
+    align=center, font=\normalsize, inner sep=8pt},
+  hdr/.style={rectangle, rounded corners=3pt,
+    minimum width=3.3cm, minimum height=0.65cm,
+    align=center, font=\small\bfseries, inner sep=5pt},
+  stdbox/.style={rectangle, rounded corners=4pt,
+    draw=orange!68!red, fill=orange!8, text width=3.0cm,
+    align=left, font=\small, inner sep=8pt},
+  evbox/.style={rectangle, rounded corners=4pt,
+    draw=blue!58, fill=blue!7, text width=3.2cm,
+    align=left, font=\small, inner sep=8pt},
+  sarr/.style={->, line width=1.3pt, color=orange!82!red, >=stealth},
+  earr/.style={->, line width=1.3pt, color=blue!68, >=stealth},
 }
 
-%%── Standard RAG query box ──────────────────────────────────────────────────
-\node[qbox, draw=orange!58!red, fill=orange!6] (qstd) at (0, 1.75) {%
-  \textbf{\textcolor{orange!82!red}{$r^\mathrm{std}$: Std.\ RAG}}\\[3pt]
-  \colorbox{orange!28}{\strut\small\textbf{homework?}}\\[3pt]
-  {\small\textcolor{gray!58}{$\hookrightarrow$ dominant view}}%
-};
+%%── Shared query box ─────────────────────────────────────────────────────────
+\node[qbox] (q) at (4.0, 6.5) {%
+  \textbf{Query:}\enspace
+  ``Does homework improve academic achievement?''};
 
-%%── EVIRAG query box ─────────────────────────────────────────────────────────
-\node[qbox, draw=blue!50, fill=blue!5] (qev) at (0, -1.75) {%
-  \textbf{\textcolor{blue!65}{$r^\mathrm{ev}$: \textsc{EVIRAG}}}\\[3pt]
-  \colorbox{blue!16}{\strut\small\textbf{homework?}}\\[3pt]
-  {\small\textcolor{gray!58}{$\hookrightarrow$ all views}}%
-};
+%%── Column headers ───────────────────────────────────────────────────────────
+\node[hdr, draw=orange!68!red, fill=orange!15, text=orange!82!red]
+  (stdh) at (2.0, 5.35) {$r^\mathrm{std}$:\;Standard RAG};
+\node[hdr, draw=blue!58, fill=blue!12, text=blue!72]
+  (evh)  at (6.3, 5.35) {$r^\mathrm{ev}$:\;\textsc{EVIRAG}};
 
-%%── Evidence Hyperspace circle ──────────────────────────────────────────────
-\fill[gray!11] (3.8, 0.05) circle (1.55);
-\draw[gray!36, line width=0.5pt] (3.8, 0.05) circle (1.55);
-\node[font=\small\itshape, text=blue!58] at (4.5, -1.74)
-  {Evidence Hyperspace};
+%%── Query → header arrows ────────────────────────────────────────────────────
+\draw[sarr] (q.south) -- ++(0,-0.15) -| (stdh.north);
+\draw[earr] (q.south) -- ++(0,-0.15) -| (evh.north);
 
-%%── Claim graph nodes ────────────────────────────────────────────────────────
-\node[qnode] (qn) at (2.45, 0.05) {};   %% query entry (green)
-\node[lnode] (v1) at (3.80, 1.58)  {};  %% Grade 7-12 (top)
-\node[lnode] (v2) at (5.17, 0.22)  {};  %% No SES (right)
-\node[lnode] (v3) at (3.00, -1.44) {};  %% Wellbeing (bottom)
+%%── Standard RAG output box ──────────────────────────────────────────────────
+\node[stdbox, below=0.35cm of stdh] (stdbox) {%
+  ``Homework \emph{consistently} improves
+  performance, stronger for
+  grades~7--12.''\\[6pt]
+  \rule{2.6cm}{0.3pt}\\[5pt]
+  {\scriptsize
+  \textcolor{red!62!black}{$\boldsymbol\times$\enspace
+  2 of 3 viewpoints erased}\\[2pt]
+  VC$_\text{emb}$\,=\,0.33\enspace|\enspace CCS\,=\,0.38}};
 
-%%── Floating node labels ─────────────────────────────────────────────────────
-\node[font=\small\bfseries, text=orange!80!red, rotate=22]
-  at (3.15, 2.12)  {Grade 7--12 ($d{\approx}0.30$)};
-\node[font=\small\bfseries, text=red!65!black, rotate=8]
-  at (5.78, 0.98)  {No SES effect};
-\node[font=\small\bfseries, text=teal!62!black, rotate=15]
-  at (1.95, -1.88) {Wellbeing harm};
-\node[font=\footnotesize\bfseries, text=green!55!black, above=2pt of qn]
-  {Query};
+%%── EVIRAG output box ────────────────────────────────────────────────────────
+\node[evbox, below=0.35cm of evh] (evbox) {%
+  \textbf{V1}\enspace\textit{[dominant, 6 src]}\\[1pt]
+  {\scriptsize Grade 7--12 gain ($d\!\approx\!0.30$)\\
+  \textit{CDA-7: methodological}}\\[5pt]
+  \textbf{V2}\enspace\textit{[alt., 3 src]}\\[1pt]
+  {\scriptsize No effect controlling for SES\\
+  \textit{CDA-7: statistical}}\\[5pt]
+  \textbf{V3}\enspace\textit{[minority, 2 src]}\\[1pt]
+  {\scriptsize Wellbeing harm, no acad.\ gain\\
+  \textit{CDA-7: operational, conf.\ low}}\\[6pt]
+  \rule{2.8cm}{0.3pt}\\[5pt]
+  {\scriptsize
+  \textcolor{blue!72}{$\checkmark$\enspace
+  All 3 viewpoints surfaced}\\[2pt]
+  VC$_\text{emb}$\,=\,1.00\enspace|\enspace CCS\,=\,0.52}};
 
-%%── Claim-graph edge labels ──────────────────────────────────────────────────
-\node[elab] at (4.70, 1.10)  {Contradicts};
-\node[elab] at (4.65, -0.62) {Supersedes};
+%%── Header → box arrows ──────────────────────────────────────────────────────
+\draw[sarr] (stdh.south) -- (stdbox.north);
+\draw[earr] (evh.south)  -- (evbox.north);
 
-%%── Standard RAG path (orange dashed): query entry → V1 only ────────────────
-\draw[epath] (qstd.east) to[bend right=8] (qn);
-\draw[epath] (qn)        to[bend right=7] (v1);
-
-%%── EVIRAG path (blue dashed): entry → V3 → V2 → V1 ────────────────────────
-\draw[cpath] (qev.east)  to[bend left=8]   (qn);
-\draw[cpath] (qn)        to[bend left=7]   (v3);
-\draw[cpath] (v3)        to[bend right=14] (v2);
-\draw[cpath] (v2)        to[bend right=16] (v1);
-
-%%── Multi-view answer box ────────────────────────────────────────────────────
-\node[abox] (ans) at (8.5, 0.10) {%
-  \textbf{\textcolor{orange!75!black}{$a_x$: Multi-View}}\\[5pt]
-  \textbf{V1:}\;Grade 7--12\;$\checkmark$\\[3pt]
-  \textbf{V2:}\;No SES\;$\checkmark$\\[3pt]
-  \textbf{V3:}\;Wellbeing\;$\checkmark$%
-};
-
-%%── V1 → answer box (gentle arc) ────────────────────────────────────────────
-\draw[apath] (v1.east) to[bend right=5] (ans.north west);
-
-%%── Legend ───────────────────────────────────────────────────────────────────
-\draw[epath, line width=1.1pt] (0.5, -3.15) -- (1.5, -3.15);
-\node[right, font=\small, text=gray!60] at (1.5, -3.15)
-  {$r^\mathrm{std}$: Std.\ RAG\;(single-view collapse)};
-\draw[cpath, line width=1.1pt] (0.5, -3.65) -- (1.5, -3.65);
-\node[right, font=\small, text=gray!60] at (1.5, -3.65)
-  {$r^\mathrm{ev}$: \textsc{EVIRAG}\;(multi-view preservation)};
+%%── Vertical divider ─────────────────────────────────────────────────────────
+\draw[gray!30, densely dashed, line width=0.6pt] (4.15, 5.8) -- (4.15, -0.5);
 
 \end{tikzpicture}}%
-\caption{Evidence Hyperspace claim-graph structure.
-$r^\mathrm{std}$ (orange): Standard RAG takes a dominant-view path,
-retrieving only the most-supported claim community and collapsing the
-remaining views.
-$r^\mathrm{ev}$ (blue): \system\ traverses all claim communities---following
-contradiction and supersession edges---and preserves each conflicting
-viewpoint through to the multi-view answer $a_x$.}
+\caption{Epistemic collapse vs.\ disagreement-aware generation on a contested
+query.
+$r^\mathrm{std}$ (Standard RAG): returns one fluent answer, erasing minority
+viewpoints and suppressing scientific disagreement.
+$r^\mathrm{ev}$ (\system): surfaces three distinct viewpoints with source
+counts, CDA-7 causal attribution, and evidence-structured confidence.
+VC$_\text{emb}$ and CCS values are on the homework-effectiveness query.}
 \label{fig:collapse}
 \end{figure}
 
