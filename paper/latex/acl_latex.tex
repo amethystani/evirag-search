@@ -232,6 +232,15 @@ controversy faithfully.
 \section{Related Work}
 \label{sec:related}
 
+To contextualise our contributions, we organise related work into three
+areas: (i)~RAG and scientific QA systems and their handling of conflicting
+evidence; (ii)~the closest architectural neighbour, MADAM-RAG, and how
+\system\ differs in objective; and (iii)~multi-perspective generation and
+epistemic uncertainty, where we situate the CDA-7 taxonomy.
+Across all three areas the consistent gap is the absence of a mechanism that
+preserves disagreement structure all the way to the final output
+surface---the gap that \system\ directly addresses.
+
 \paragraph{RAG, verification, and conflict handling.}
 Standard RAG systems focus on retrieval quality, attribution, or factual
 precision for a single answer \citep{lewis2020rag,gao2023rarr,min2023factscore,
@@ -245,8 +254,9 @@ answer \citep{zhong2023romqa,wang2025conflicting,xie2024conflictqa}.
 ConflictQA \citep{xie2024conflictqa} addresses conflicting information in QA
 but does not provide causal attribution for disagreements or structured
 multi-view output with per-view confidence.
-\system\ instead treats the preservation of disagreement as the primary
-objective.
+\textit{\textup{\system}\ instead treats the preservation of disagreement as
+the primary objective, producing structured multi-view output rather than a
+resolved single answer.}
 
 \paragraph{MADAM-RAG vs.\ \system.}
 The closest work in approach is MADAM-RAG \citep{wang2025conflicting}, which
@@ -259,11 +269,12 @@ on \bench, compared to \system\ Full's CR$=0.742$---a gap of $+0.124$
 CR points that persists across all five domains (Table~\ref{tab:perdomain}).
 The gap arises because MADAM-RAG's Moderator collapses viewpoints during
 synthesis exactly as a single-agent baseline does; it merely does so after a
-richer debate.  \system\ avoids this collapse by retaining a multi-view output
-surface through to the final response.  Neither design is universally better:
-MADAM-RAG's resolved answer is more appropriate when downstream tasks require
-a single verdict; \system's multi-view format is appropriate when preserving
-structured disagreement for human decision-making.
+richer debate.  \textit{\textup{\system}\ avoids this collapse by retaining a multi-view
+output surface through to the final response.}  Neither design is universally
+better: MADAM-RAG's resolved answer is more appropriate when downstream tasks
+require a single verdict; \textit{\textup{\system}'s multi-view format is
+appropriate when the goal is preserving structured disagreement for human
+deliberation over contested evidence.}
 
 \paragraph{Multi-perspective generation and epistemic uncertainty.}
 Multi-perspective summarization produces diverse summaries from opinionated
@@ -277,11 +288,12 @@ addresses a gap in existing NLI-based claim verification: standard NLI
 models (and claim-level entailment approaches such as FActScore
 \citep{min2023factscore}) label a claim pair as \emph{contradicts} or
 \emph{supports} but do not explain \emph{why} the contradiction exists.
-CDA-7 adds a causal dimension---methodological scope, population differences,
-operational definitions, temporal supersession, statistical interpretation,
-theoretical framing, and replication failure---motivated by philosophy-of-science
-accounts of how scientific disagreements are actually sustained
-\citep{longino2002science,solomon2001social}.
+\textit{CDA-7 adds a causal dimension---methodological scope, population
+differences, operational definitions, temporal supersession, statistical
+interpretation, theoretical framing, and replication failure---motivated by
+philosophy-of-science accounts of how scientific disagreements are actually
+sustained \citep{longino2002science,solomon2001social}, a dimension absent
+from all prior NLI-based claim verification frameworks.}
 
 \begin{table*}[t]
 \centering\small
@@ -356,10 +368,11 @@ separated.
 \label{sec:metrics}
 
 \paragraph{Consensus Collapse Score (CCS).}
-\[
+\begin{equation}
+\label{eq:ccs}
 \mathrm{CCS}(V) = 1 - \cos\!\left(\mathbf{c}_\mathrm{dom},\;
   \tfrac{1}{k}\sum_{i=1}^{k}\mathbf{c}_i\right),
-\]
+\end{equation}
 where $V$ is the set of claim clusters extracted from a system's response,
 $\mathbf{c}_\mathrm{dom}$ is the embedding centroid of the largest cluster,
 and $\mathbf{c}_i$ are centroids of all $k$ clusters.  Even single-view
@@ -369,13 +382,20 @@ Higher CCS indicates greater asymmetry in viewpoint coverage---i.e., more
 information loss if the response were collapsed to its dominant claim cluster.
 
 \paragraph{Other metrics.}
-We also use Epistemic Divergence (ED), the mean pairwise cosine distance among
-view centroids; Polarization Index (PI), a signed-Laplacian measure of conflict
-separation in $G$ inspired by spectral graph structure
-\citep{traag2009community}; and EpistemicCoverage@K (EC@K), which measures how
-many ground-truth views are represented in the retrieved top-$K$ evidence.
-Together these metrics capture viewpoint separation, conflict structure, and
-retrieval-side coverage in ways that standard relevance metrics cannot.
+\textbf{Epistemic Divergence (ED)} is the mean pairwise cosine distance among
+view embedding centroids; higher values indicate that the identified viewpoints
+are more separated in semantic space, signalling a more fragmented evidence
+landscape.
+\textbf{Polarization Index (PI)} is a signed-Laplacian measure of conflict
+separation in the claim graph $G$~\citep{traag2009community}; it captures
+whether $G$ decomposes into clearly opposed clusters (high PI) rather than a
+gradual spectrum of partial disagreement (low PI).
+\textbf{EpistemicCoverage@K (EC@K)} is the fraction of annotated ground-truth
+viewpoints represented within the top-$K$ retrieved evidence chunks; it
+diagnoses retrieval-side coverage failures before synthesis ever occurs.
+Together, ED, PI, and EC@K complement CCS~(Eq.~\ref{eq:ccs}) by capturing
+viewpoint separation, conflict structure, and retrieval-side coverage in ways
+that standard relevance metrics cannot.
 
 \subsection{Controversy Typology}
 \label{sec:taxonomy}
@@ -395,7 +415,7 @@ class).  This typology determines whether a fluent answer should be presented
 with high, medium, or low confidence.
 
 %% ─────────────────────────────────────────────────────────────────────────────
-\section{The \system\ Framework}
+\section{Proposed Framework: \system}
 \label{sec:system}
 
 \system\ enforces one design principle: \emph{disagreement must be modeled
@@ -601,9 +621,14 @@ We report:
   \item \textbf{ViewpointCoverage (VC)}: fraction of annotated viewpoints
     surfaced, measured by keyword overlap (VC$_\text{kw}$) and dense-encoder
     similarity (VC$_\text{emb}$; \texttt{all-MiniLM-L6-v2}, $\theta{=}0.65$).
-  \item \textbf{CCS}: consensus information loss under single-view collapse.
-  \item \textbf{CCE}: confidence calibration error against annotated
-    controversy class.
+  \item \textbf{CCS} (Consensus Collapse Score, Eq.~\ref{eq:ccs}): angular
+    asymmetry between the dominant view centroid and the mean viewpoint
+    centroid; higher CCS indicates that the response over-represents one
+    viewpoint relative to the full evidence distribution.
+  \item \textbf{CCE} (Confidence Calibration Error): mean absolute deviation
+    between the system's emitted confidence tier and the gold controversy
+    class label (Resolved/Emerging/Stable/Polarized); lower values indicate
+    better-calibrated uncertainty signals.
   \item \textbf{FaithfulnessScore (FS)}: claim-level faithfulness of each view
     to its cited evidence, following FActScore-style NLI verification
     \citep{min2023factscore}.
@@ -1152,7 +1177,7 @@ release.}
 \quad Llama-3.1-70B       & 0.563 & 0.418 & 0.574 \\
 \quad Qwen3.6-35B (main)  & 0.580 & 0.423 & 0.558 \\
 \midrule
-\multicolumn{4}{@{}l}{\textit{\system\ Full}} \\
+\multicolumn{4}{@{}l}{\textit{\textup{\system}\ Full}} \\
 \quad Qwen2.5-7B          & 0.648 & 0.703 & 0.547 \\
 \quad Llama-3.1-70B       & 0.712 & 0.821 & 0.524 \\
 \quad Qwen3.6-35B (main)  & 0.760 & 0.847 & 0.512 \\
