@@ -94,119 +94,163 @@ output interface that preserves viewpoint structure, provenance, and uncertainty
 Improving retrieval recall alone does not solve the problem if synthesis still
 compresses the evidence to one paragraph.
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\resizebox{\columnwidth}{!}{%
+\resizebox{\textwidth}{!}{%
 \begin{tikzpicture}
-%% ── Styles ──────────────────────────────────────────────────────────
+%% ── Styles ──────────────────────────────────────────────────────────────
 \tikzset{
-  stepbox/.style={rectangle, rounded corners=3pt,
+  qbox/.style={rectangle, rounded corners=5pt,
+    draw=gray!48, fill=gray!5, line width=0.9pt,
+    text width=13cm, align=center,
+    font=\large\bfseries, inner sep=9pt},
+  sbox/.style={rectangle, rounded corners=3pt,
     draw=gray!38, fill=white, line width=0.6pt,
-    text width=3.25cm, align=center,
-    font=\scriptsize, inner sep=4pt, minimum height=0.68cm},
-  ragout/.style={rectangle, rounded corners=4pt, dashed,
-    draw=red!55, fill=red!5, line width=0.75pt,
-    text width=3.25cm, align=left,
-    font=\scriptsize, inner sep=5pt},
-  evout/.style={rectangle, rounded corners=4pt, dashed,
-    draw=teal!65, fill=teal!5, line width=0.75pt,
-    text width=3.55cm, align=left,
-    font=\scriptsize, inner sep=5pt},
-  sarr/.style={->, line width=0.65pt, >=stealth, color=gray!55},
-  marr/.style={->, line width=0.85pt, >=stealth, color=black!70},
+    text width=5.8cm, align=center,
+    font=\normalsize, inner sep=5pt, minimum height=0.85cm},
+  abox/.style={rectangle, rounded corners=3pt,
+    draw=blue!45, fill=blue!8, line width=0.55pt,
+    text width=1.85cm, align=center,
+    font=\small, inner sep=3pt, minimum height=0.72cm},
+  rout/.style={rectangle, rounded corners=4pt, dashed,
+    draw=red!55, fill=red!5, line width=0.8pt,
+    text width=5.9cm, align=left,
+    font=\normalsize, inner sep=7pt},
+  eout/.style={rectangle, rounded corners=4pt, dashed,
+    draw=teal!65, fill=teal!5, line width=0.8pt,
+    text width=6.3cm, align=left,
+    font=\normalsize, inner sep=7pt},
+  vcirc/.style={circle, minimum size=1.25cm, inner sep=0pt,
+    font=\small\bfseries, line width=0.6pt},
+  rarr/.style={->, line width=0.8pt, >=stealth, color=orange!82!red},
+  earr/.style={->, line width=0.8pt, >=stealth, color=blue!65},
+  qarr/.style={->, line width=1.0pt, >=stealth, color=gray!55},
+  carr/.style={->, line width=0.6pt, >=stealth, dashed, color=red!62},
+  barr/.style={line width=0.45pt, color=gray!45},
 }
 
-%% ══════════════════════════════════════════════════════════════════
-%% LEFT PANEL — Standard RAG
-%% ══════════════════════════════════════════════════════════════════
-%% Panel background
-\fill[orange!7, rounded corners=6pt]
-  (0.00, -0.15) rectangle (4.30, 5.10);
-%% Header bar (clipped so top corners match the panel's rounding)
-\begin{scope}
-  \clip[rounded corners=6pt] (0.00, -0.15) rectangle (4.30, 5.10);
-  \fill[orange!75!red!85] (0.00, 4.45) rectangle (4.30, 5.10);
-\end{scope}
-\draw[orange!32, rounded corners=6pt, line width=0.65pt]
-  (0.00, -0.15) rectangle (4.30, 5.10);
-\node[font=\small\bfseries, white] at (2.15, 4.78)
-  {Standard RAG};
-
-%% Process steps
-\node[stepbox] (ls1) at (2.15, 3.95)
-  {Dense retrieval\\(top-$k$, single pass)};
-\node[stepbox] (ls2) at (2.15, 3.10)
-  {LLM synthesis\\(single-view answer)};
-
-%% Output
-\node[ragout] (lout) at (2.15, 1.62)
-  {``Homework improves performance, with stronger effects for older
-   students.''\\[4pt]
-   \hfill\textcolor{red!75!black}{\small\textbf{Epistemic collapse}%
-   \;$\boldsymbol{\times}$}};
-
-%% Connecting arrows
-\draw[sarr] (ls1) -- (ls2);
-\draw[sarr] (ls2) -- (lout.north);
-
-%% ══════════════════════════════════════════════════════════════════
-%% RIGHT PANEL — EVIRAG
-%% ══════════════════════════════════════════════════════════════════
-%% Panel background
-\fill[blue!6, rounded corners=6pt]
-  (5.10, -0.15) rectangle (9.40, 5.10);
-%% Header bar (clipped)
-\begin{scope}
-  \clip[rounded corners=6pt] (5.10, -0.15) rectangle (9.40, 5.10);
-  \fill[blue!68] (5.10, 4.45) rectangle (9.40, 5.10);
-\end{scope}
-\draw[blue!28, rounded corners=6pt, line width=0.65pt]
-  (5.10, -0.15) rectangle (9.40, 5.10);
-\node[font=\small\bfseries, white] at (7.25, 4.78)
-  {\system};
-
-%% Process steps
-\node[stepbox] (rs1) at (7.25, 3.95)
-  {4 adversarial agents\\(diverse retrieval)};
-\node[stepbox] (rs2) at (7.25, 3.10)
-  {Claim graph + NLI\\(disagreement struct.)};
-\node[stepbox] (rs3) at (7.25, 2.55)
-  {Multi-view synthesis};
-
-%% Output
-\node[evout] (rout) at (7.25, 0.70)
-  {\textbf{View 1}~\textit{[6\,src]:}~Gr.~7--12 gain ($d{\approx}0.30$)%
-   \\[2pt]
-   \textbf{View 2}~\textit{[3\,src]:}~No effect after SES controls%
-   \\[2pt]
-   \textbf{View 3}~\textit{[2\,src]:}~Harms \mbox{wellbeing}%
-   ~\textcolor{teal!68!black}{$\boldsymbol{\checkmark}$}};
-
-%% Connecting arrows
-\draw[sarr] (rs1) -- (rs2);
-\draw[sarr] (rs2) -- (rs3);
-\draw[sarr] (rs3) -- (rout.north);
-
-%% ══════════════════════════════════════════════════════════════════
-%% SHARED QUERY BOX (top, spans both panels)
-%% ══════════════════════════════════════════════════════════════════
-\node[rectangle, rounded corners=5pt,
-  draw=gray!48, fill=gray!4, line width=0.85pt,
-  text width=8.2cm, align=center,
-  font=\small\bfseries, inner sep=7pt] (q) at (4.70, 6.28)
+%% ── Query box (top, spans full width) ───────────────────────────────────
+\node[qbox] (q) at (9.0, 0)
   {``Does homework improve academic achievement?''};
 
-%% Fork arrows: query → each panel header
-\draw[marr] (q.south) -- ++(0,-0.32) -| (2.15, 5.10);
-\draw[marr] (q.south) -- ++(0,-0.32) -| (7.25, 5.10);
+%% ═══════════════════════════════════════════════════════════════════════
+%% LEFT PANEL — Standard RAG
+%% ═══════════════════════════════════════════════════════════════════════
+\fill[orange!7, rounded corners=7pt] (0,-1.1) rectangle (8.4,-13.0);
+\begin{scope}
+  \clip[rounded corners=7pt] (0,-1.1) rectangle (8.4,-13.0);
+  \fill[orange!78!red!82] (0,-1.1) rectangle (8.4,-2.05);
+\end{scope}
+\draw[orange!35, rounded corners=7pt, line width=0.7pt]
+  (0,-1.1) rectangle (8.4,-13.0);
+\node[font=\large\bfseries, white] at (4.2,-1.57) {Standard RAG};
+
+%% Step nodes
+\node[sbox] (ls1) at (4.2,-3.4)
+  {Dense retrieval\\{\small(top-$k$, single pass)}};
+\node[sbox] (ls2) at (4.2,-5.5)
+  {LLM synthesis\\{\small(single-view answer)}};
+\node[rout] (lout) at (4.2,-9.5) {%
+  \textit{``Homework improves performance, with stronger effects for older students.''}%
+  \\[6pt]
+  \hfill\textcolor{red!72!black}{\textbf{Epistemic collapse}\;$\boldsymbol{\times}$}};
+
+%% Left arrows
+\draw[rarr] (ls1) -- (ls2);
+\draw[rarr] (ls2) -- (lout.north);
+
+%% ═══════════════════════════════════════════════════════════════════════
+%% RIGHT PANEL — EVIRAG
+%% ═══════════════════════════════════════════════════════════════════════
+\fill[blue!5, rounded corners=7pt] (9.6,-1.1) rectangle (18.0,-13.0);
+\begin{scope}
+  \clip[rounded corners=7pt] (9.6,-1.1) rectangle (18.0,-13.0);
+  \fill[blue!63] (9.6,-1.1) rectangle (18.0,-2.05);
+\end{scope}
+\draw[blue!30, rounded corners=7pt, line width=0.7pt]
+  (9.6,-1.1) rectangle (18.0,-13.0);
+\node[font=\large\bfseries, white] at (13.8,-1.57) {\system};
+
+%% 4 adversarial agent boxes
+\node[abox] (a1) at (10.55,-3.4) {Precision\\Agent};
+\node[abox] (a2) at (12.20,-3.4) {Recall\\Agent};
+\node[abox] (a3) at (13.85,-3.4) {\textbf{Skeptic}\\Agent};
+\node[abox] (a4) at (15.50,-3.4) {Counter-\\factual};
+
+%% Claim graph box
+\node[sbox, text width=6.4cm] (cg) at (13.8,-5.3)
+  {Claim graph $G$ + NLI labeling\\%
+   {\small\textcolor{teal!70!black}{supports}\;\big/\;\textcolor{red!65}{contradicts}\;\big/\;neutral}};
+
+%% ── Louvain communities (3 colored circles) ────────────────────────────
+\node[vcirc, fill=blue!13, draw=blue!42, text=blue!72]
+  (v1) at (11.35,-7.7) {V1};
+\node[vcirc, fill=gray!16, draw=gray!50, text=gray!65]
+  (v2) at (13.80,-7.7) {V2};
+\node[vcirc, fill=teal!14, draw=teal!48, text=teal!68]
+  (v3) at (16.25,-7.7) {V3};
+
+%% Contradiction arcs between communities
+\draw[carr, bend left=28] (v1.east) to (v2.west);
+\draw[carr, bend left=28] (v2.east) to (v3.west);
+
+%% Louvain label (below circles)
+\node[font=\small\itshape, text=gray!58]
+  at (13.8,-8.75) {Louvain communities on $G$};
+
+%% Synthesis box
+\node[sbox, text width=6.4cm] (sy) at (13.8,-9.75)
+  {Multi-view synthesis\\{\small(one summary per community)}};
+
+%% Three-view output
+\node[eout] (rout) at (13.8,-11.85) {%
+  \textbf{View 1}~\textit{[6\,src,\;med]:}~Gr.\;7--12 gain ($d{\approx}0.30$)\\[3pt]
+  \textbf{View 2}~\textit{[3\,src,\;med]:}~No effect after SES controls\\[3pt]
+  \textbf{View 3}~\textit{[2\,src,\;low]:}~Harms \mbox{wellbeing}%
+  \;\textcolor{teal!65!black}{$\boldsymbol{\checkmark}$}};
+
+%% Right arrows: agents → claim graph (fan-in)
+\draw[earr] (a1.south) -- ++(0,-0.30) -| (cg.north);
+\draw[earr] (a2.south) -- ++(0,-0.30) -| (cg.north);
+\draw[earr] (a3.south) -- ++(0,-0.30) -| (cg.north);
+\draw[earr] (a4.south) -- ++(0,-0.30) -| (cg.north);
+
+%% cg → communities (fan-out via junction)
+\draw[earr] (cg.south) -- (13.8,-6.18);
+\draw[earr] (13.8,-6.18) -| (v1.north);
+\draw[earr] (13.8,-6.18) -- (v2.north);
+\draw[earr] (13.8,-6.18) -| (v3.north);
+
+%% communities → synthesis (fan-in with horizontal bar)
+\draw[barr] (v1.south) -- ++(0,-0.28) -- (16.25,-8.60);
+\draw[barr] (v3.south) -- ++(0,-0.28);
+\draw[earr] (13.8,-8.60) -- (sy.north);
+
+%% synthesis → output
+\draw[earr] (sy) -- (rout.north);
+
+%% ── Query → panels ──────────────────────────────────────────────────────
+\draw[qarr] (q.south) -- ++(0,-0.28) -| (4.2,-1.1);
+\draw[qarr] (q.south) -- ++(0,-0.28) -| (13.8,-1.1);
+
+%% ── Bottom legend ────────────────────────────────────────────────────────
+\draw[rarr, line width=1.0pt] (0.8,-12.3) -- (2.5,-12.3);
+\node[right, font=\small, text=gray!65] at (2.5,-12.3)
+  {Standard RAG path\enspace(epistemic collapse)};
+\draw[earr, line width=1.0pt] (9.8,-12.3) -- (11.5,-12.3);
+\node[right, font=\small, text=gray!65] at (11.5,-12.3)
+  {\system\ pipeline\enspace(disagreement preserved)};
+\draw[carr, line width=0.75pt] (15.2,-12.3) -- (16.5,-12.3);
+\node[right, font=\small, text=gray!65] at (16.5,-12.3) {contradicts};
 
 \end{tikzpicture}}%
-\caption{Epistemic collapse illustrated. Standard RAG compresses
-contested evidence into one fluent but incomplete answer.
-\system's adversarial retrieval preserves competing viewpoints
-through to the final output.}
+\caption{Epistemic collapse illustrated. Standard RAG compresses contested
+evidence into one fluent but incomplete answer. \system\ deploys four
+adversarial agents, constructs a claim disagreement graph $G$, identifies
+three Louvain communities (V1--V3), and preserves all viewpoints through
+to the final multi-view output.}
 \label{fig:collapse}
-\end{figure}
+\end{figure*}
 
 \paragraph{Approach.}
 \system\ is designed around that premise.  It uses adversarial retrieval to
