@@ -97,158 +97,103 @@ compresses the evidence to one paragraph.
 \begin{figure*}[t]
 \centering
 \resizebox{\textwidth}{!}{%
-\begin{tikzpicture}
-%% ── Styles ──────────────────────────────────────────────────────────────
+\begin{tikzpicture}[>=stealth, font=\normalsize]
+%%── Styles ────────────────────────────────────────────────────────────────
 \tikzset{
-  qbox/.style={rectangle, rounded corners=5pt,
-    draw=gray!48, fill=gray!5, line width=0.9pt,
-    text width=13cm, align=center,
-    font=\large\bfseries, inner sep=9pt},
-  sbox/.style={rectangle, rounded corners=3pt,
-    draw=gray!38, fill=white, line width=0.6pt,
-    text width=5.8cm, align=center,
-    font=\normalsize, inner sep=5pt, minimum height=0.85cm},
-  abox/.style={rectangle, rounded corners=3pt,
-    draw=blue!45, fill=blue!8, line width=0.55pt,
-    text width=1.85cm, align=center,
-    font=\small, inner sep=3pt, minimum height=0.72cm},
-  rout/.style={rectangle, rounded corners=4pt, dashed,
-    draw=red!55, fill=red!5, line width=0.8pt,
-    text width=5.9cm, align=left,
-    font=\normalsize, inner sep=7pt},
-  eout/.style={rectangle, rounded corners=4pt, dashed,
-    draw=teal!65, fill=teal!5, line width=0.8pt,
-    text width=6.3cm, align=left,
-    font=\normalsize, inner sep=7pt},
-  vcirc/.style={circle, minimum size=1.25cm, inner sep=0pt,
-    font=\small\bfseries, line width=0.6pt},
-  rarr/.style={->, line width=0.8pt, >=stealth, color=orange!82!red},
-  earr/.style={->, line width=0.8pt, >=stealth, color=blue!65},
-  qarr/.style={->, line width=1.0pt, >=stealth, color=gray!55},
-  carr/.style={->, line width=0.6pt, >=stealth, dashed, color=red!62},
-  barr/.style={line width=0.45pt, color=gray!45},
+  qbox/.style={rectangle, rounded corners=7pt, line width=0.9pt,
+    text width=6.2cm, align=left, inner sep=12pt},
+  abox/.style={rectangle, rounded corners=8pt,
+    draw=orange!60!black, fill=yellow!22, line width=1.3pt,
+    text width=4.8cm, align=center, inner sep=13pt},
+  lnode/.style={circle, fill=black!82, minimum size=8pt, inner sep=0pt},
+  qnode/.style={circle, fill=green!62!black, minimum size=11pt, inner sep=0pt},
+  epath/.style={->, line width=1.4pt, color=orange!82!red, >=stealth,
+    dash pattern=on 7pt off 3.5pt},
+  cpath/.style={->, line width=1.4pt, color=blue!65, >=stealth,
+    dash pattern=on 7pt off 3.5pt},
+  apath/.style={->, line width=1.1pt, color=black!50, >=stealth,
+    dash pattern=on 5pt off 3pt},
+  elab/.style={fill=white, inner sep=2.5pt, font=\small, text=black!55},
 }
 
-%% ── Query box (top, spans full width) ───────────────────────────────────
-\node[qbox] (q) at (9.0, 0)
-  {``Does homework improve academic achievement?''};
+%%── Left box: Standard RAG ────────────────────────────────────────────────
+\node[qbox, draw=orange!58!red, fill=orange!6] (qstd) at (0, 2.6) {%
+  \textbf{\textcolor{orange!82!red}{$r^\mathrm{std}$\;:\;Standard RAG}}\\[6pt]
+  ``Does homework improve\\[2pt]
+  \colorbox{orange!30}{\strut\textbf{academic achievement}}?''\\[6pt]
+  {\small\textcolor{gray!58}{$\hookrightarrow$ selects dominant view only}}%
+};
 
-%% ═══════════════════════════════════════════════════════════════════════
-%% LEFT PANEL — Standard RAG
-%% ═══════════════════════════════════════════════════════════════════════
-\fill[orange!7, rounded corners=7pt] (0,-1.1) rectangle (8.4,-13.0);
-\begin{scope}
-  \clip[rounded corners=7pt] (0,-1.1) rectangle (8.4,-13.0);
-  \fill[orange!78!red!82] (0,-1.1) rectangle (8.4,-2.05);
-\end{scope}
-\draw[orange!35, rounded corners=7pt, line width=0.7pt]
-  (0,-1.1) rectangle (8.4,-13.0);
-\node[font=\large\bfseries, white] at (4.2,-1.57) {Standard RAG};
+%%── Left box: EVIRAG ─────────────────────────────────────────────────────
+\node[qbox, draw=blue!50, fill=blue!5] (qev) at (0, -2.5) {%
+  \textbf{\textcolor{blue!65}{$r^\mathrm{ev}$\;:\;\textsc{EVIRAG}}}\\[6pt]
+  ``Does homework affect\\[2pt]
+  \colorbox{blue!18}{\strut\textbf{academic achievement}}?''\\[6pt]
+  {\small\textcolor{gray!58}{$\hookrightarrow$ preserves all conflicting views}}%
+};
 
-%% Step nodes
-\node[sbox] (ls1) at (4.2,-3.4)
-  {Dense retrieval\\{\small(top-$k$, single pass)}};
-\node[sbox] (ls2) at (4.2,-5.5)
-  {LLM synthesis\\{\small(single-view answer)}};
-\node[rout] (lout) at (4.2,-9.5) {%
-  \textit{``Homework improves performance, with stronger effects for older students.''}%
-  \\[6pt]
-  \hfill\textcolor{red!72!black}{\textbf{Epistemic collapse}\;$\boldsymbol{\times}$}};
+%%── Circle background (Evidence Hyperspace) ──────────────────────────────
+\fill[gray!11] (9.2, 0.1) circle (3.25);
+\draw[gray!36, line width=0.55pt] (9.2, 0.1) circle (3.25);
+\node[font=\small\itshape, text=blue!58] at (9.2, -3.75)
+  {Evidence Hyperspace};
 
-%% Left arrows
-\draw[rarr] (ls1) -- (ls2);
-\draw[rarr] (ls2) -- (lout.north);
+%%── Graph nodes ──────────────────────────────────────────────────────────
+\node[qnode] (qn)  at (6.30, 0.15) {};   %% query entry (green)
+\node[lnode] (v1)  at (9.35, 3.05) {};   %% Grade 7-12 gain
+\node[lnode] (v2)  at (12.10, 0.40) {};  %% No SES effect
+\node[lnode] (v3)  at (8.10, -2.75) {};  %% Wellbeing harm
 
-%% ═══════════════════════════════════════════════════════════════════════
-%% RIGHT PANEL — EVIRAG
-%% ═══════════════════════════════════════════════════════════════════════
-\fill[blue!5, rounded corners=7pt] (9.6,-1.1) rectangle (18.0,-13.0);
-\begin{scope}
-  \clip[rounded corners=7pt] (9.6,-1.1) rectangle (18.0,-13.0);
-  \fill[blue!63] (9.6,-1.1) rectangle (18.0,-2.05);
-\end{scope}
-\draw[blue!30, rounded corners=7pt, line width=0.7pt]
-  (9.6,-1.1) rectangle (18.0,-13.0);
-\node[font=\large\bfseries, white] at (13.8,-1.57) {\system};
+%%── Slanted floating labels ──────────────────────────────────────────────
+\node[font=\small\bfseries, text=orange!80!red, rotate=30]
+  at (8.8, 3.80)  {Grade 7--12 gain ($d{\approx}0.30$)};
+\node[font=\small\bfseries, text=red!65!black, rotate=-8]
+  at (13.65, 1.05) {No effect (SES-adj.)};
+\node[font=\small\bfseries, text=teal!62!black, rotate=15]
+  at (7.35, -3.52) {Wellbeing harm};
+\node[font=\footnotesize\bfseries, text=green!55!black, above=3pt of qn]
+  {Query};
 
-%% 4 adversarial agent boxes
-\node[abox] (a1) at (10.55,-3.4) {Precision\\Agent};
-\node[abox] (a2) at (12.20,-3.4) {Recall\\Agent};
-\node[abox] (a3) at (13.85,-3.4) {\textbf{Skeptic}\\Agent};
-\node[abox] (a4) at (15.50,-3.4) {Counter-\\factual};
+%%── Edge labels inside circle ────────────────────────────────────────────
+\node[elab] at (10.45, 2.05) {Contradicts};
+\node[elab] at (10.85, -1.35) {Supersedes};
 
-%% Claim graph box
-\node[sbox, text width=6.4cm] (cg) at (13.8,-5.3)
-  {Claim graph $G$ + NLI labeling\\%
-   {\small\textcolor{teal!70!black}{supports}\;\big/\;\textcolor{red!65}{contradicts}\;\big/\;neutral}};
+%%── Standard RAG path (orange): query → V1 only ──────────────────────────
+\draw[epath] (qstd.east) to[bend right=10] (qn);
+\draw[epath] (qn)        to[bend right=8]  (v1);
 
-%% ── Louvain communities (3 colored circles) ────────────────────────────
-\node[vcirc, fill=blue!13, draw=blue!42, text=blue!72]
-  (v1) at (11.35,-7.7) {V1};
-\node[vcirc, fill=gray!16, draw=gray!50, text=gray!65]
-  (v2) at (13.80,-7.7) {V2};
-\node[vcirc, fill=teal!14, draw=teal!48, text=teal!68]
-  (v3) at (16.25,-7.7) {V3};
+%%── EVIRAG path (blue): query → V3 → V2 → V1 ───────────────────────────
+\draw[cpath] (qev.east)  to[bend left=10]  (qn);
+\draw[cpath] (qn)        to[bend left=8]   (v3);
+\draw[cpath] (v3)        to[bend right=15] (v2);
+\draw[cpath] (v2)        to[bend right=15] (v1);
 
-%% Contradiction arcs between communities
-\draw[carr, bend left=28] (v1.east) to (v2.west);
-\draw[carr, bend left=28] (v2.east) to (v3.west);
+%%── Answer box (right, yellow) ───────────────────────────────────────────
+\node[abox] (ans) at (16.9, 0.3) {%
+  \textbf{\textcolor{orange!75!black}{$a_x$\;:\;Multi-View Answer}}\\[9pt]
+  \textbf{View~1:}\;Grade~7--12 gain\;$\checkmark$\\[5pt]
+  \textbf{View~2:}\;No~SES~effect\;$\checkmark$\\[5pt]
+  \textbf{View~3:}\;Wellbeing~harm\;$\checkmark$%
+};
 
-%% Louvain label (below circles)
-\node[font=\small\itshape, text=gray!58]
-  at (13.8,-8.75) {Louvain communities on $G$};
+%%── Arrow: v1 → answer box ───────────────────────────────────────────────
+\draw[apath] (v1.east) to[out=0, in=145] (ans.north west);
 
-%% Synthesis box
-\node[sbox, text width=6.4cm] (sy) at (13.8,-9.75)
-  {Multi-view synthesis\\{\small(one summary per community)}};
-
-%% Three-view output
-\node[eout] (rout) at (13.8,-11.85) {%
-  \textbf{View 1}~\textit{[6\,src,\;med]:}~Gr.\;7--12 gain ($d{\approx}0.30$)\\[3pt]
-  \textbf{View 2}~\textit{[3\,src,\;med]:}~No effect after SES controls\\[3pt]
-  \textbf{View 3}~\textit{[2\,src,\;low]:}~Harms \mbox{wellbeing}%
-  \;\textcolor{teal!65!black}{$\boldsymbol{\checkmark}$}};
-
-%% Right arrows: agents → claim graph (fan-in)
-\draw[earr] (a1.south) -- ++(0,-0.30) -| (cg.north);
-\draw[earr] (a2.south) -- ++(0,-0.30) -| (cg.north);
-\draw[earr] (a3.south) -- ++(0,-0.30) -| (cg.north);
-\draw[earr] (a4.south) -- ++(0,-0.30) -| (cg.north);
-
-%% cg → communities (fan-out via junction)
-\draw[earr] (cg.south) -- (13.8,-6.18);
-\draw[earr] (13.8,-6.18) -| (v1.north);
-\draw[earr] (13.8,-6.18) -- (v2.north);
-\draw[earr] (13.8,-6.18) -| (v3.north);
-
-%% communities → synthesis (fan-in with horizontal bar)
-\draw[barr] (v1.south) -- ++(0,-0.28) -- (16.25,-8.60);
-\draw[barr] (v3.south) -- ++(0,-0.28);
-\draw[earr] (13.8,-8.60) -- (sy.north);
-
-%% synthesis → output
-\draw[earr] (sy) -- (rout.north);
-
-%% ── Query → panels ──────────────────────────────────────────────────────
-\draw[qarr] (q.south) -- ++(0,-0.28) -| (4.2,-1.1);
-\draw[qarr] (q.south) -- ++(0,-0.28) -| (13.8,-1.1);
-
-%% ── Bottom legend ────────────────────────────────────────────────────────
-\draw[rarr, line width=1.0pt] (0.8,-12.3) -- (2.5,-12.3);
-\node[right, font=\small, text=gray!65] at (2.5,-12.3)
-  {Standard RAG path\enspace(epistemic collapse)};
-\draw[earr, line width=1.0pt] (9.8,-12.3) -- (11.5,-12.3);
-\node[right, font=\small, text=gray!65] at (11.5,-12.3)
-  {\system\ pipeline\enspace(disagreement preserved)};
-\draw[carr, line width=0.75pt] (15.2,-12.3) -- (16.5,-12.3);
-\node[right, font=\small, text=gray!65] at (16.5,-12.3) {contradicts};
+%%── Bottom legend ────────────────────────────────────────────────────────
+\draw[epath, line width=1.3pt] (3.6, -5.15) -- (5.4, -5.15);
+\node[right, font=\small, text=gray!60] at (5.4, -5.15)
+  {$r^\mathrm{std}$\;:\;Standard RAG\;(single-view collapse)};
+\draw[cpath, line width=1.3pt] (12.3, -5.15) -- (14.1, -5.15);
+\node[right, font=\small, text=gray!60] at (14.1, -5.15)
+  {$r^\mathrm{ev}$\;:\;\textsc{EVIRAG}\;(multi-view preservation)};
 
 \end{tikzpicture}}%
-\caption{Epistemic collapse illustrated. Standard RAG compresses contested
-evidence into one fluent but incomplete answer. \system\ deploys four
-adversarial agents, constructs a claim disagreement graph $G$, identifies
-three Louvain communities (V1--V3), and preserves all viewpoints through
-to the final multi-view output.}
+\caption{The claim graph structure of the Evidence Hyperspace.
+$r^\mathrm{std}$: Standard RAG takes a dominant-view path, selecting only the
+most-supported claim community and collapsing all other views.
+$r^\mathrm{ev}$: \system\ traverses all claim communities---following
+contradiction and supersession edges---and preserves each conflicting
+viewpoint through to the final multi-view output.}
 \label{fig:collapse}
 \end{figure*}
 
