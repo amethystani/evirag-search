@@ -1,5 +1,5 @@
 # EVIRAG: Evidence-Centric, Disagreement-Aware Scientific RAG
-
+ 
 > **Standard scientific RAG compresses genuine expert disagreement into a single fluent answer — erasing viewpoint diversity. EVIRAG treats disagreement as the primary output signal, not noise to suppress.**
 
 This repository accompanies the paper:  
